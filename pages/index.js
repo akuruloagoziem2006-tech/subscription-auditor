@@ -12,7 +12,6 @@ export default function Home() {
     other: 0
   });
 
-  // For manual add
   const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
 
@@ -34,7 +33,6 @@ export default function Home() {
     localStorage.setItem("costOfLiving", JSON.stringify(costOfLiving));
   }, [subscriptions, total, costOfLiving]);
 
-  // Improved detection
   function detectRecurring(transactions) {
     const groups = {};
 
@@ -59,7 +57,7 @@ export default function Home() {
       if (items.length >= 2) {
         const avgAmount = items.reduce((sum, item) => sum + Math.abs(item.amount), 0) / items.length;
         recurring.push({
-          id: key + Date.now(),
+          id: key + Date.now() + Math.random(),
           name: items[0].description,
           amount: avgAmount,
           count: items.length,
@@ -111,19 +109,28 @@ export default function Home() {
     );
   }
 
+  function deleteSubscription(id) {
+    const sub = subscriptions.find(s => s.id === id);
+    if (sub) {
+      setTotal(prev => prev - sub.amount);
+    }
+    setSubscriptions(prev => prev.filter(sub => sub.id !== id));
+  }
+
   function addManualSubscription() {
     if (!newName || !newAmount) return;
 
+    const amount = parseFloat(newAmount);
     const newSub = {
       id: Date.now().toString(),
       name: newName,
-      amount: parseFloat(newAmount),
+      amount: amount,
       count: 1,
       status: "keep"
     };
 
     setSubscriptions(prev => [...prev, newSub]);
-    setTotal(prev => prev + parseFloat(newAmount));
+    setTotal(prev => prev + amount);
     setNewName("");
     setNewAmount("");
   }
@@ -140,47 +147,66 @@ export default function Home() {
     .filter(sub => sub.status === "cancel")
     .reduce((sum, sub) => sum + sub.amount, 0);
 
+  const grandTotal = total + totalCOL;
+
   return (
     <div style={{ 
       padding: "16px", 
       fontFamily: "system-ui, -apple-system, sans-serif", 
       maxWidth: "480px", 
       margin: "0 auto",
-      backgroundColor: "#f1f5f9",
-      minHeight: "100vh"
+      backgroundColor: "#f8fafc",
+      minHeight: "100vh",
+      color: "#0f172a"
     }}>
-      <h1 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "4px", color: "#0f172a" }}>
+      <h1 style={{ fontSize: "24px", fontWeight: "700", marginBottom: "4px" }}>
         Subscription Auditor
       </h1>
       <p style={{ color: "#64748b", marginBottom: "20px", fontSize: "14px" }}>
         Find forgotten subscriptions & track living costs
       </p>
 
-      {/* Total + Savings Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+      {/* Summary Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
         <div style={{ 
           backgroundColor: "white",
           padding: "16px", 
           borderRadius: "12px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)"
         }}>
           <div style={{ fontSize: "13px", color: "#64748b" }}>Monthly Recurring</div>
-          <div style={{ fontSize: "24px", fontWeight: "700", color: "#0f172a" }}>
+          <div style={{ fontSize: "22px", fontWeight: "700" }}>
             ${total.toFixed(2)}
           </div>
         </div>
 
         <div style={{ 
-          backgroundColor: "white",
+          backgroundColor: "#ecfdf5",
           padding: "16px", 
           borderRadius: "12px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          border: "1px solid #bbf7d0"
         }}>
-          <div style={{ fontSize: "13px", color: "#64748b" }}>You can save</div>
-          <div style={{ fontSize: "24px", fontWeight: "700", color: "#16a34a" }}>
+          <div style={{ fontSize: "13px", color: "#166534" }}>You can save</div>
+          <div style={{ fontSize: "22px", fontWeight: "700", color: "#16a34a" }}>
             ${savings.toFixed(2)}
           </div>
         </div>
+      </div>
+
+      {/* Grand Total */}
+      <div style={{ 
+        backgroundColor: "#0f172a",
+        color: "white",
+        padding: "14px 16px", 
+        borderRadius: "12px",
+        marginBottom: "16px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center"
+      }}>
+        <span style={{ fontSize: "14px" }}>Total Monthly (Recurring + Living)</span>
+        <span style={{ fontSize: "18px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
       </div>
 
       {/* Upload */}
@@ -211,22 +237,22 @@ export default function Home() {
         borderRadius: "12px",
         padding: "16px",
         marginBottom: "16px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+        boxShadow: "0 1px 3px rgba(0,0,0,0.08)"
       }}>
-        <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>Add Subscription Manually</h3>
+        <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Add Subscription Manually</h3>
         <input
           type="text"
           placeholder="Name (e.g. Netflix)"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: "1px solid #e2e8f0" }}
+          style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: "1px solid #e2e8f0", boxSizing: "border-box" }}
         />
         <input
           type="number"
           placeholder="Amount"
           value={newAmount}
           onChange={(e) => setNewAmount(e.target.value)}
-          style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: "1px solid #e2e8f0" }}
+          style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: "1px solid #e2e8f0", boxSizing: "border-box" }}
         />
         <button
           onClick={addManualSubscription}
@@ -251,9 +277,9 @@ export default function Home() {
           borderRadius: "12px",
           padding: "16px",
           marginBottom: "16px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)"
         }}>
-          <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>Your Subscriptions</h3>
+          <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Your Subscriptions</h3>
           
           {subscriptions.map((sub) => (
             <div key={sub.id} style={{
@@ -263,7 +289,7 @@ export default function Home() {
               justifyContent: "space-between",
               alignItems: "center"
             }}>
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: "500" }}>{sub.name}</div>
                 <div style={{ fontSize: "12px", color: "#94a3b8" }}>
                   {sub.count > 1 ? `Appeared ${sub.count} times` : "Manual entry"}
@@ -271,12 +297,12 @@ export default function Home() {
               </div>
               
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontWeight: "600" }}>${sub.amount.toFixed(2)}</div>
-                <div style={{ marginTop: "6px" }}>
+                <div style={{ fontWeight: "600", marginBottom: "6px" }}>${sub.amount.toFixed(2)}</div>
+                <div>
                   <button
                     onClick={() => updateStatus(sub.id, "keep")}
                     style={{
-                      padding: "4px 10px",
+                      padding: "4px 8px",
                       fontSize: "12px",
                       marginRight: "4px",
                       backgroundColor: sub.status === "keep" ? "#16a34a" : "#e2e8f0",
@@ -290,8 +316,9 @@ export default function Home() {
                   <button
                     onClick={() => updateStatus(sub.id, "cancel")}
                     style={{
-                      padding: "4px 10px",
+                      padding: "4px 8px",
                       fontSize: "12px",
+                      marginRight: "4px",
                       backgroundColor: sub.status === "cancel" ? "#dc2626" : "#e2e8f0",
                       color: sub.status === "cancel" ? "white" : "#334155",
                       border: "none",
@@ -299,6 +326,19 @@ export default function Home() {
                     }}
                   >
                     Cancel
+                  </button>
+                  <button
+                    onClick={() => deleteSubscription(sub.id)}
+                    style={{
+                      padding: "4px 8px",
+                      fontSize: "12px",
+                      backgroundColor: "#fee2e2",
+                      color: "#b91c1c",
+                      border: "none",
+                      borderRadius: "6px"
+                    }}
+                  >
+                    Delete
                   </button>
                 </div>
               </div>
@@ -312,9 +352,9 @@ export default function Home() {
         backgroundColor: "white",
         borderRadius: "12px",
         padding: "16px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)"
+        boxShadow: "0 1px 3px rgba(0,0,0,0.08)"
       }}>
-        <h3 style={{ margin: "0 0 12px 0", fontSize: "15px" }}>Cost of Living (Monthly)</h3>
+        <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Cost of Living (Monthly)</h3>
         
         {["housing", "food", "transport", "utilities", "other"].map((field) => (
           <div key={field} style={{ 
