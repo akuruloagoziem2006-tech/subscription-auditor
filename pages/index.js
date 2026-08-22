@@ -19,7 +19,6 @@ export default function Home() {
 
   const categories = ["Entertainment", "Music", "Health", "Software", "Shopping", "Other"];
 
-  // Load saved data
   useEffect(() => {
     const savedSubs = localStorage.getItem("subscriptions");
     const savedTotal = localStorage.getItem("total");
@@ -32,7 +31,6 @@ export default function Home() {
     if (savedDark) setDarkMode(savedDark === "true");
   }, []);
 
-  // Save data
   useEffect(() => {
     localStorage.setItem("subscriptions", JSON.stringify(subscriptions));
     localStorage.setItem("total", total.toString());
@@ -40,7 +38,6 @@ export default function Home() {
     localStorage.setItem("darkMode", darkMode.toString());
   }, [subscriptions, total, costOfLiving, darkMode]);
 
-  // Improved detection
   function detectRecurring(transactions) {
     const groups = {};
 
@@ -52,7 +49,6 @@ export default function Home() {
         .replace(/\s+/g, " ")
         .trim();
 
-      // Common cleanups
       key = key.replace(/\b(ltd|inc|llc|payment|debit|credit|card)\b/g, "").trim();
 
       if (key.length < 3) return;
@@ -68,7 +64,6 @@ export default function Home() {
       if (items.length >= 2) {
         const avgAmount = items.reduce((sum, item) => sum + Math.abs(item.amount), 0) / items.length;
 
-        // Simple category guess
         let category = "Other";
         const lower = key.toLowerCase();
         if (lower.includes("netflix") || lower.includes("disney") || lower.includes("hulu") || lower.includes("youtube")) category = "Entertainment";
@@ -183,7 +178,6 @@ export default function Home() {
     .reduce((sum, sub) => sum + sub.amount, 0);
   const grandTotal = total + totalCOL;
 
-  // Theme colors
   const bg = darkMode ? "#0f172a" : "#f8fafc";
   const card = darkMode ? "#1e293b" : "white";
   const text = darkMode ? "#f1f5f9" : "#0f172a";
@@ -192,9 +186,9 @@ export default function Home() {
 
   return (
     <div style={{ 
-      padding: "16px", 
+      padding: "20px 16px", 
       fontFamily: "system-ui, -apple-system, sans-serif", 
-      maxWidth: "480px", 
+      maxWidth: "720px",          // ← Made wider (was 480px)
       margin: "0 auto",
       backgroundColor: bg,
       minHeight: "100vh",
@@ -203,13 +197,13 @@ export default function Home() {
     }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-        <h1 style={{ fontSize: "22px", fontWeight: "700", margin: 0 }}>
+        <h1 style={{ fontSize: "24px", fontWeight: "700", margin: 0 }}>
           Subscription Auditor
         </h1>
         <button
           onClick={() => setDarkMode(!darkMode)}
           style={{
-            padding: "6px 12px",
+            padding: "6px 14px",
             borderRadius: "20px",
             border: `1px solid ${border}`,
             background: card,
@@ -221,25 +215,25 @@ export default function Home() {
           {darkMode ? "Light" : "Dark"}
         </button>
       </div>
-      <p style={{ color: muted, marginBottom: "20px", fontSize: "13px" }}>
+      <p style={{ color: muted, marginBottom: "24px", fontSize: "14px" }}>
         Find forgotten subscriptions & track living costs
       </p>
 
       {/* Summary Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-        <div style={{ backgroundColor: card, padding: "14px", borderRadius: "12px" }}>
-          <div style={{ fontSize: "12px", color: muted }}>Monthly Recurring</div>
-          <div style={{ fontSize: "20px", fontWeight: "700" }}>${total.toFixed(2)}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+        <div style={{ backgroundColor: card, padding: "16px", borderRadius: "12px" }}>
+          <div style={{ fontSize: "13px", color: muted }}>Monthly Recurring</div>
+          <div style={{ fontSize: "22px", fontWeight: "700" }}>${total.toFixed(2)}</div>
         </div>
 
         <div style={{ 
           backgroundColor: darkMode ? "#14532d" : "#ecfdf5",
-          padding: "14px", 
+          padding: "16px", 
           borderRadius: "12px",
           border: darkMode ? "1px solid #166534" : "1px solid #bbf7d0"
         }}>
-          <div style={{ fontSize: "12px", color: darkMode ? "#86efac" : "#166534" }}>You can save</div>
-          <div style={{ fontSize: "20px", fontWeight: "700", color: "#16a34a" }}>
+          <div style={{ fontSize: "13px", color: darkMode ? "#86efac" : "#166534" }}>You can save</div>
+          <div style={{ fontSize: "22px", fontWeight: "700", color: "#16a34a" }}>
             ${savings.toFixed(2)}
           </div>
         </div>
@@ -249,23 +243,23 @@ export default function Home() {
       <div style={{ 
         backgroundColor: darkMode ? "#1e293b" : "#0f172a",
         color: "white",
-        padding: "12px 16px", 
+        padding: "14px 18px", 
         borderRadius: "12px",
-        marginBottom: "16px",
+        marginBottom: "20px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center"
       }}>
-        <span style={{ fontSize: "13px" }}>Total Monthly</span>
-        <span style={{ fontSize: "17px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
+        <span style={{ fontSize: "14px" }}>Total Monthly</span>
+        <span style={{ fontSize: "18px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
       </div>
 
       {/* Buttons */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
         <label style={{
           display: "block",
           textAlign: "center",
-          padding: "12px",
+          padding: "13px",
           backgroundColor: "#2563eb",
           color: "white",
           borderRadius: "10px",
@@ -280,7 +274,7 @@ export default function Home() {
         <button
           onClick={exportData}
           style={{
-            padding: "12px",
+            padding: "13px",
             backgroundColor: card,
             color: text,
             border: `1px solid ${border}`,
@@ -295,32 +289,32 @@ export default function Home() {
       </div>
 
       {message && (
-        <p style={{ textAlign: "center", color: "#2563eb", fontSize: "13px", marginBottom: "12px" }}>
+        <p style={{ textAlign: "center", color: "#2563eb", fontSize: "14px", marginBottom: "16px" }}>
           {message}
         </p>
       )}
 
       {/* Manual Add */}
-      <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
-        <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Add Subscription</h3>
+      <div style={{ backgroundColor: card, borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
+        <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Add Subscription</h3>
         <input
           type="text"
           placeholder="Name (e.g. Netflix)"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }}
+          style={{ width: "100%", padding: "11px", marginBottom: "10px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }}
         />
         <input
           type="number"
           placeholder="Amount"
           value={newAmount}
           onChange={(e) => setNewAmount(e.target.value)}
-          style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }}
+          style={{ width: "100%", padding: "11px", marginBottom: "10px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }}
         />
         <select
           value={newCategory}
           onChange={(e) => setNewCategory(e.target.value)}
-          style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text }}
+          style={{ width: "100%", padding: "11px", marginBottom: "10px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text }}
         >
           {categories.map(cat => (
             <option key={cat} value={cat}>{cat}</option>
@@ -330,7 +324,7 @@ export default function Home() {
           onClick={addManualSubscription}
           style={{
             width: "100%",
-            padding: "10px",
+            padding: "12px",
             backgroundColor: "#0f172a",
             color: "white",
             border: "none",
@@ -344,41 +338,42 @@ export default function Home() {
 
       {/* Subscriptions List */}
       {subscriptions.length > 0 && (
-        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
-          <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Your Subscriptions</h3>
+        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
+          <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Your Subscriptions</h3>
           
           {subscriptions.map((sub) => (
             <div key={sub.id} style={{
-              padding: "12px 0",
+              padding: "14px 0",
               borderBottom: `1px solid ${border}`,
               display: "flex",
               justifyContent: "space-between",
-              alignItems: "flex-start"
+              alignItems: "flex-start",
+              gap: "12px"
             }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: "500" }}>{sub.name}</div>
-                <div style={{ fontSize: "12px", color: muted }}>
+                <div style={{ fontWeight: "500", fontSize: "15px" }}>{sub.name}</div>
+                <div style={{ fontSize: "13px", color: muted, marginTop: "2px" }}>
                   {sub.category} • {sub.count > 1 ? `${sub.count} times` : "Manual"}
                 </div>
               </div>
               
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontWeight: "600", marginBottom: "6px" }}>${sub.amount.toFixed(2)}</div>
-                <div style={{ display: "flex", gap: "4px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ fontWeight: "600", marginBottom: "8px", fontSize: "15px" }}>${sub.amount.toFixed(2)}</div>
+                <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", flexWrap: "wrap" }}>
                   <button onClick={() => updateStatus(sub.id, "keep")} style={{
-                    padding: "4px 8px", fontSize: "11px",
+                    padding: "5px 10px", fontSize: "12px",
                     backgroundColor: sub.status === "keep" ? "#16a34a" : border,
                     color: sub.status === "keep" ? "white" : text,
                     border: "none", borderRadius: "6px"
                   }}>Keep</button>
                   <button onClick={() => updateStatus(sub.id, "cancel")} style={{
-                    padding: "4px 8px", fontSize: "11px",
+                    padding: "5px 10px", fontSize: "12px",
                     backgroundColor: sub.status === "cancel" ? "#dc2626" : border,
                     color: sub.status === "cancel" ? "white" : text,
                     border: "none", borderRadius: "6px"
                   }}>Cancel</button>
                   <button onClick={() => deleteSubscription(sub.id)} style={{
-                    padding: "4px 8px", fontSize: "11px",
+                    padding: "5px 10px", fontSize: "12px",
                     backgroundColor: darkMode ? "#450a0a" : "#fee2e2",
                     color: "#ef4444",
                     border: "none", borderRadius: "6px"
@@ -391,15 +386,15 @@ export default function Home() {
       )}
 
       {/* Cost of Living */}
-      <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px" }}>
-        <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Cost of Living</h3>
+      <div style={{ backgroundColor: card, borderRadius: "12px", padding: "18px" }}>
+        <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Cost of Living</h3>
         
         {["housing", "food", "transport", "utilities", "other"].map((field) => (
           <div key={field} style={{ 
             display: "flex", 
             justifyContent: "space-between", 
             alignItems: "center",
-            marginBottom: "10px"
+            marginBottom: "12px"
           }}>
             <label style={{ textTransform: "capitalize", fontSize: "14px" }}>{field}</label>
             <input
@@ -407,8 +402,8 @@ export default function Home() {
               value={costOfLiving[field]}
               onChange={(e) => updateCostOfLiving(field, e.target.value)}
               style={{
-                width: "100px",
-                padding: "8px",
+                width: "110px",
+                padding: "9px",
                 border: `1px solid ${border}`,
                 borderRadius: "8px",
                 textAlign: "right",
@@ -420,8 +415,8 @@ export default function Home() {
         ))}
 
         <div style={{ 
-          marginTop: "12px", 
-          paddingTop: "12px", 
+          marginTop: "14px", 
+          paddingTop: "14px", 
           borderTop: `1px solid ${border}`,
           display: "flex",
           justifyContent: "space-between",
@@ -432,8 +427,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Future Bank Connection Note */}
-      <p style={{ textAlign: "center", fontSize: "12px", color: muted, marginTop: "24px" }}>
+      <p style={{ textAlign: "center", fontSize: "12px", color: muted, marginTop: "28px" }}>
         Bank connection (Plaid) coming soon
       </p>
     </div>

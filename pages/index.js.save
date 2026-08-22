@@ -1,0 +1,179 @@
+import { useState, useEffect } from "react";
+
+export default function Home() {
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [message, setMessage] = useState("");
+  const [darkMode, setDarkMode] = useState(false);
+  const [costOfLiving, setCostOfLiving] = useState({
+    housing: 0,
+    food: 0,
+    transport: 0,
+    utilities: 0,
+    other: 0
+  });
+
+  const [newName, setNewName] = useState("");
+  const [newAmount, setNewAmount] = useState("");
+  const [newCategory, setNewCategory] = useState("Entertainment");
+
+  const categories = ["Entertainment", "Music", "Health", "Software", "Shopping", "Other"];
+
+  // Load saved data
+  useEffect(() => {
+    const savedSubs = localStorage.getItem("subscriptions");
+    const savedTotal = localStorage.getItem("total");
+    const savedCOL = localStorage.getItem("costOfLiving");
+    const savedDark = localStorage.getItem("darkMode");
+
+    if (savedSubs) setSubscriptions(JSON.parse(savedSubs));
+    if (savedTotal) setTotal(parseFloat(savedTotal));
+    if (savedCOL) setCostOfLiving(JSON.parse(savedCOL));
+    if (savedDark) setDarkMode(savedDark === "true");
+  }, []);
+
+  // Save data
+  useEffect(() => {
+    localStorage.setItem("subscriptions", JSON.stringify(subscriptions));
+    localStorage.setItem("total", total.toString());
+    localStorage.setItem("costOfLiving", JSON.stringify(costOfLiving));
+    localStorage.setItem("darkMode", darkMode.toString());
+  }, [subscriptions, total, costOfLiving, darkMode]);
+
+  // Improved detection
+  function detectRecurring(transactions) {
+    const groups = {};
+
+    transactions.forEach((tx) => {
+      let key = tx.description
+        .toLowerCase()
+        .replace(/[0-9]/g, "")
+        .replace(/[^a-z\s]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      // Common cleanups
+      key = key.replace(/\b(ltd|inc|llc|payment|debit|credit|card)\b/g, "").trim();
+
+      if (key.length < 3) return;
+
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(tx);
+    });
+
+    const recurring = [];
+
+    Object.keys(groups).forEach((key) => {
+      const items = groups[key];
+      if (items.length >= 2) {
+        const avgAmount = items.reduce((sum, item) => sum + Math.abs(item.amount), 0) / items.length;
+
+        // Simple category guess
+        let category = "Other";
+        const lower = key.toLowerCase();
+        if (lower.includes("netflix") || lower.includes("disney") || lower.includes("hulu") || lower.includes("youtube")) category = "Entertainment";
+        else if (lower.includes("spotify") || lower.includes("apple music") || lower.includes("tidal")) category = "Music";
+        else if (lower.includes("gym") || lower.includes("fitness") || lower.includes("health")) category = "Health";
+        else if (lower.includes("adobe") || lower.includes("microsoft") || lower.includes("google") || lower.includes("dropbox")) category = "Software";
+
+        recurring.push({
+          id: key + Date.now() + Math.random(),
+          name: items[0].description,
+          amount: avgAmount,
+          count: items.length,
+          status: "keep",
+          category
+        });
+      }
+    });
+
+    return recurring;
+  }
+
+  function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target.result;
+        const lines = text.split("\n").filter(line => line.trim() !== "");
+
+        const transactions = [];
+        for (let i = 1; i < lines.length; i++) {
+          const parts = lines[i].split(",");
+          if (parts.length >= 3) {
+            const description = parts[1].trim();
+            const amount = parseFloat(parts[2]);
+            if (description && !isNaN(amount)) {
+              transactions.push({ description, amount });
+            }
+          }
+        }
+
+        const detected = detectRecurring(transactions);
+        setSubscriptions(detected);
+        const totalAmount = detected.reduce((sum, sub) => sum + sub.amount, 0);
+        setTotal(totalAmount);
+        setMessage(`Found ${detected.length} recurring subscriptions`);
+      } catch (err) {
+        setMessage("Error reading file. Please use a valid CSV.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function updateStatus(id, newStatus) {
+    setSubscriptions(prev =>
+      prev.map(sub => sub.id === id ? { ...sub, status: newStatus } : sub)
+    );
+  }
+
+  function deleteSubscription(id) {
+    const sub = subscriptions.find(s => s.id === id);
+    if (sub) setTotal(prev => prev - sub.amount);
+    setSubscriptions(prev => prev.filter(sub => sub.id !== id));
+  }
+
+  function addManualSubscription() {
+    if (!newName || !newAmount) return;
+
+    const amount = parseFloat(newAmount);
+    const newSub = {
+      id: Date.now().toString(),
+      name: newName,
+      amount,
+      count: 1,
+      status: "keep",
+      category: newCategory
+    };
+
+    setSubscriptions(prev => [...prev, newSub]);
+    setTotal(prev => prev + amount);
+    setNewName("");
+    setNewAmount("");
+  }
+
+  function updateCostOfLiving(field, value) {
+    setCostOfLiving(prev => ({
+      ...prev,
+      [field]: parseFloat(value) || 0
+    }));
+  }
+
+  function exportData() {
+    let csv = "Name,Amount,Category,Status,Count\n";
+    subscriptions.forEach(sub => {
+      csv += `"\( {sub.name}", \){sub.amount.toFixed(2)},\( {sub.category}, \){sub.status},${sub.count}\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "subscriptions-export.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
