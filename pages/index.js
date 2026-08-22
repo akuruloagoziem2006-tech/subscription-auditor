@@ -5,6 +5,12 @@ export default function Home() {
   const [total, setTotal] = useState(0);
   const [message, setMessage] = useState("");
   const [darkMode, setDarkMode] = useState(false);
+  const [viewMode, setViewMode] = useState("monthly"); // monthly or yearly
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editCategory, setEditCategory] = useState("Entertainment");
+
   const [costOfLiving, setCostOfLiving] = useState({
     housing: 0,
     food: 0,
@@ -50,7 +56,6 @@ export default function Home() {
         .trim();
 
       key = key.replace(/\b(ltd|inc|llc|payment|debit|credit|card)\b/g, "").trim();
-
       if (key.length < 3) return;
 
       if (!groups[key]) groups[key] = [];
@@ -82,7 +87,7 @@ export default function Home() {
       }
     });
 
-    return recurring;
+    return recurring.sort((a, b) => b.amount - a.amount);
   }
 
   function handleFileUpload(e) {
@@ -131,6 +136,32 @@ export default function Home() {
     setSubscriptions(prev => prev.filter(sub => sub.id !== id));
   }
 
+  function startEdit(sub) {
+    setEditingId(sub.id);
+    setEditName(sub.name);
+    setEditAmount(sub.amount.toString());
+    setEditCategory(sub.category || "Other");
+  }
+
+  function saveEdit() {
+    if (!editName || !editAmount) return;
+
+    const newAmount = parseFloat(editAmount);
+    const oldSub = subscriptions.find(s => s.id === editingId);
+    const difference = newAmount - (oldSub ? oldSub.amount : 0);
+
+    setSubscriptions(prev =>
+      prev.map(sub =>
+        sub.id === editingId
+          ? { ...sub, name: editName, amount: newAmount, category: editCategory }
+          : sub
+      ).sort((a, b) => b.amount - a.amount)
+    );
+
+    setTotal(prev => prev + difference);
+    setEditingId(null);
+  }
+
   function addManualSubscription() {
     if (!newName || !newAmount) return;
 
@@ -144,7 +175,7 @@ export default function Home() {
       category: newCategory
     };
 
-    setSubscriptions(prev => [...prev, newSub]);
+    setSubscriptions(prev => [...prev, newSub].sort((a, b) => b.amount - a.amount));
     setTotal(prev => prev + amount);
     setNewName("");
     setNewAmount("");
@@ -172,11 +203,24 @@ export default function Home() {
     URL.revokeObjectURL(url);
   }
 
+  function clearAllData() {
+    if (confirm("Are you sure you want to delete all data?")) {
+      setSubscriptions([]);
+      setTotal(0);
+      setCostOfLiving({ housing: 0, food: 0, transport: 0, utilities: 0, other: 0 });
+      setMessage("");
+    }
+  }
+
   const totalCOL = Object.values(costOfLiving).reduce((a, b) => a + b, 0);
   const savings = subscriptions
     .filter(sub => sub.status === "cancel")
     .reduce((sum, sub) => sum + sub.amount, 0);
-  const grandTotal = total + totalCOL;
+
+  const displayTotal = viewMode === "yearly" ? total * 12 : total;
+  const displaySavings = viewMode === "yearly" ? savings * 12 : savings;
+  const displayCOL = viewMode === "yearly" ? totalCOL * 12 : totalCOL;
+  const grandTotal = displayTotal + displayCOL;
 
   const bg = darkMode ? "#0f172a" : "#f8fafc";
   const card = darkMode ? "#1e293b" : "white";
@@ -188,7 +232,7 @@ export default function Home() {
     <div style={{ 
       padding: "20px 16px", 
       fontFamily: "system-ui, -apple-system, sans-serif", 
-      maxWidth: "720px",          // ← Made wider (was 480px)
+      maxWidth: "720px",
       margin: "0 auto",
       backgroundColor: bg,
       minHeight: "100vh",
@@ -196,7 +240,7 @@ export default function Home() {
       transition: "background 0.3s"
     }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: "700", margin: 0 }}>
           Subscription Auditor
         </h1>
@@ -208,22 +252,57 @@ export default function Home() {
             border: `1px solid ${border}`,
             background: card,
             color: text,
-            fontSize: "13px",
-            cursor: "pointer"
+            fontSize: "13px"
           }}
         >
           {darkMode ? "Light" : "Dark"}
         </button>
       </div>
-      <p style={{ color: muted, marginBottom: "24px", fontSize: "14px" }}>
+      <p style={{ color: muted, marginBottom: "16px", fontSize: "14px" }}>
         Find forgotten subscriptions & track living costs
       </p>
 
+      {/* View Mode Toggle */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+        <button
+          onClick={() => setViewMode("monthly")}
+          style={{
+            flex: 1,
+            padding: "8px",
+            borderRadius: "8px",
+            border: "none",
+            background: viewMode === "monthly" ? "#2563eb" : card,
+            color: viewMode === "monthly" ? "white" : text,
+            fontWeight: "600",
+            fontSize: "13px"
+          }}
+        >
+          Monthly
+        </button>
+        <button
+          onClick={() => setViewMode("yearly")}
+          style={{
+            flex: 1,
+            padding: "8px",
+            borderRadius: "8px",
+            border: "none",
+            background: viewMode === "yearly" ? "#2563eb" : card,
+            color: viewMode === "yearly" ? "white" : text,
+            fontWeight: "600",
+            fontSize: "13px"
+          }}
+        >
+          Yearly
+        </button>
+      </div>
+
       {/* Summary Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
         <div style={{ backgroundColor: card, padding: "16px", borderRadius: "12px" }}>
-          <div style={{ fontSize: "13px", color: muted }}>Monthly Recurring</div>
-          <div style={{ fontSize: "22px", fontWeight: "700" }}>${total.toFixed(2)}</div>
+          <div style={{ fontSize: "13px", color: muted }}>
+            {viewMode === "yearly" ? "Yearly" : "Monthly"} Recurring
+          </div>
+          <div style={{ fontSize: "22px", fontWeight: "700" }}>${displayTotal.toFixed(2)}</div>
         </div>
 
         <div style={{ 
@@ -234,7 +313,7 @@ export default function Home() {
         }}>
           <div style={{ fontSize: "13px", color: darkMode ? "#86efac" : "#166534" }}>You can save</div>
           <div style={{ fontSize: "22px", fontWeight: "700", color: "#16a34a" }}>
-            ${savings.toFixed(2)}
+            ${displaySavings.toFixed(2)}
           </div>
         </div>
       </div>
@@ -245,27 +324,26 @@ export default function Home() {
         color: "white",
         padding: "14px 18px", 
         borderRadius: "12px",
-        marginBottom: "20px",
+        marginBottom: "16px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center"
       }}>
-        <span style={{ fontSize: "14px" }}>Total Monthly</span>
+        <span style={{ fontSize: "14px" }}>Total {viewMode === "yearly" ? "Yearly" : "Monthly"}</span>
         <span style={{ fontSize: "18px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
       </div>
 
-      {/* Buttons */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
+      {/* Action Buttons */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
         <label style={{
           display: "block",
           textAlign: "center",
-          padding: "13px",
+          padding: "12px",
           backgroundColor: "#2563eb",
           color: "white",
           borderRadius: "10px",
           fontWeight: "600",
-          fontSize: "14px",
-          cursor: "pointer"
+          fontSize: "14px"
         }}>
           Upload CSV
           <input type="file" accept=".csv" onChange={handleFileUpload} style={{ display: "none" }} />
@@ -274,19 +352,35 @@ export default function Home() {
         <button
           onClick={exportData}
           style={{
-            padding: "13px",
+            padding: "12px",
             backgroundColor: card,
             color: text,
             border: `1px solid ${border}`,
             borderRadius: "10px",
             fontWeight: "600",
-            fontSize: "14px",
-            cursor: "pointer"
+            fontSize: "14px"
           }}
         >
           Export CSV
         </button>
       </div>
+
+      <button
+        onClick={clearAllData}
+        style={{
+          width: "100%",
+          padding: "10px",
+          marginBottom: "16px",
+          backgroundColor: darkMode ? "#450a0a" : "#fef2f2",
+          color: "#dc2626",
+          border: "none",
+          borderRadius: "10px",
+          fontWeight: "600",
+          fontSize: "13px"
+        }}
+      >
+        Clear All Data
+      </button>
 
       {message && (
         <p style={{ textAlign: "center", color: "#2563eb", fontSize: "14px", marginBottom: "16px" }}>
@@ -316,9 +410,7 @@ export default function Home() {
           onChange={(e) => setNewCategory(e.target.value)}
           style={{ width: "100%", padding: "11px", marginBottom: "10px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text }}
         >
-          {categories.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
+          {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
         </select>
         <button
           onClick={addManualSubscription}
@@ -337,51 +429,95 @@ export default function Home() {
       </div>
 
       {/* Subscriptions List */}
-      {subscriptions.length > 0 && (
+      {subscriptions.length > 0 ? (
         <div style={{ backgroundColor: card, borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
           <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Your Subscriptions</h3>
           
           {subscriptions.map((sub) => (
             <div key={sub.id} style={{
               padding: "14px 0",
-              borderBottom: `1px solid ${border}`,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              gap: "12px"
+              borderBottom: `1px solid ${border}`
             }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: "500", fontSize: "15px" }}>{sub.name}</div>
-                <div style={{ fontSize: "13px", color: muted, marginTop: "2px" }}>
-                  {sub.category} • {sub.count > 1 ? `${sub.count} times` : "Manual"}
+              {editingId === sub.id ? (
+                <div>
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }}
+                  />
+                  <input
+                    type="number"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }}
+                  />
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    style={{ width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}
+                  >
+                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button onClick={saveEdit} style={{ flex: 1, padding: "8px", background: "#16a34a", color: "white", border: "none", borderRadius: "6px" }}>Save</button>
+                    <button onClick={() => setEditingId(null)} style={{ flex: 1, padding: "8px", background: border, color: text, border: "none", borderRadius: "6px" }}>Cancel</button>
+                  </div>
                 </div>
-              </div>
-              
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontWeight: "600", marginBottom: "8px", fontSize: "15px" }}>${sub.amount.toFixed(2)}</div>
-                <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                  <button onClick={() => updateStatus(sub.id, "keep")} style={{
-                    padding: "5px 10px", fontSize: "12px",
-                    backgroundColor: sub.status === "keep" ? "#16a34a" : border,
-                    color: sub.status === "keep" ? "white" : text,
-                    border: "none", borderRadius: "6px"
-                  }}>Keep</button>
-                  <button onClick={() => updateStatus(sub.id, "cancel")} style={{
-                    padding: "5px 10px", fontSize: "12px",
-                    backgroundColor: sub.status === "cancel" ? "#dc2626" : border,
-                    color: sub.status === "cancel" ? "white" : text,
-                    border: "none", borderRadius: "6px"
-                  }}>Cancel</button>
-                  <button onClick={() => deleteSubscription(sub.id)} style={{
-                    padding: "5px 10px", fontSize: "12px",
-                    backgroundColor: darkMode ? "#450a0a" : "#fee2e2",
-                    color: "#ef4444",
-                    border: "none", borderRadius: "6px"
-                  }}>Delete</button>
+              ) : (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: "500", fontSize: "15px" }}>{sub.name}</div>
+                    <div style={{ fontSize: "13px", color: muted, marginTop: "2px" }}>
+                      {sub.category} • {sub.count > 1 ? `${sub.count} times` : "Manual"}
+                    </div>
+                  </div>
+                  
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: "600", marginBottom: "8px", fontSize: "15px" }}>
+                      ${(viewMode === "yearly" ? sub.amount * 12 : sub.amount).toFixed(2)}
+                    </div>
+                    <div style={{ display: "flex", gap: "5px", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                      <button onClick={() => updateStatus(sub.id, "keep")} style={{
+                        padding: "4px 8px", fontSize: "11px",
+                        backgroundColor: sub.status === "keep" ? "#16a34a" : border,
+                        color: sub.status === "keep" ? "white" : text,
+                        border: "none", borderRadius: "6px"
+                      }}>Keep</button>
+                      <button onClick={() => updateStatus(sub.id, "cancel")} style={{
+                        padding: "4px 8px", fontSize: "11px",
+                        backgroundColor: sub.status === "cancel" ? "#dc2626" : border,
+                        color: sub.status === "cancel" ? "white" : text,
+                        border: "none", borderRadius: "6px"
+                      }}>Cancel</button>
+                      <button onClick={() => startEdit(sub)} style={{
+                        padding: "4px 8px", fontSize: "11px",
+                        backgroundColor: border, color: text,
+                        border: "none", borderRadius: "6px"
+                      }}>Edit</button>
+                      <button onClick={() => deleteSubscription(sub.id)} style={{
+                        padding: "4px 8px", fontSize: "11px",
+                        backgroundColor: darkMode ? "#450a0a" : "#fee2e2",
+                        color: "#ef4444",
+                        border: "none", borderRadius: "6px"
+                      }}>Delete</button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ))}
+        </div>
+      ) : (
+        <div style={{ 
+          backgroundColor: card, 
+          borderRadius: "12px", 
+          padding: "40px 20px", 
+          marginBottom: "18px",
+          textAlign: "center",
+          color: muted
+        }}>
+          <div style={{ fontSize: "16px", marginBottom: "8px" }}>No subscriptions yet</div>
+          <div style={{ fontSize: "14px" }}>Upload a CSV or add one manually to get started</div>
         </div>
       )}
 
@@ -395,7 +531,7 @@ export default function Home() {
             justifyContent: "space-between", 
             alignItems: "center",
             marginBottom: "12px"
-          }}>
+}}>
             <label style={{ textTransform: "capitalize", fontSize: "14px" }}>{field}</label>
             <input
               type="number"
@@ -422,14 +558,10 @@ export default function Home() {
           justifyContent: "space-between",
           fontWeight: "600"
         }}>
-          <span>Total Living Costs</span>
-          <span>${totalCOL.toFixed(2)}</span>
+          <span>Total Living Costs ({viewMode})</span>
+          <span>${displayCOL.toFixed(2)}</span>
         </div>
       </div>
-
-      <p style={{ textAlign: "center", fontSize: "12px", color: muted, marginTop: "28px" }}>
-        Bank connection (Plaid) coming soon
-      </p>
     </div>
   );
 }
