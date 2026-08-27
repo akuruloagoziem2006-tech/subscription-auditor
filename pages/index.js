@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { usePlaidLink } from "react-plaid-link";
+
 export default function Home() {
   const [subscriptions, setSubscriptions] = useState([]);
   const [total, setTotal] = useState(0);
   const [message, setMessage] = useState("");
   const [darkMode, setDarkMode] = useState(false);
-  const [viewMode, setViewMode] = useState("monthly"); // monthly or yearly
+  const [viewMode, setViewMode] = useState("monthly");
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
@@ -22,8 +24,13 @@ export default function Home() {
   const [newAmount, setNewAmount] = useState("");
   const [newCategory, setNewCategory] = useState("Entertainment");
 
+  // Plaid states
+  const [linkToken, setLinkToken] = useState(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+
   const categories = ["Entertainment", "Music", "Health", "Software", "Shopping", "Other"];
 
+  // Load saved data
   useEffect(() => {
     const savedSubs = localStorage.getItem("subscriptions");
     const savedTotal = localStorage.getItem("total");
@@ -35,20 +42,58 @@ export default function Home() {
     if (savedCOL) setCostOfLiving(JSON.parse(savedCOL));
     if (savedDark) setDarkMode(savedDark === "true");
   }, []);
-useEffect(() => {
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then(() => console.log("Service Worker registered"))
-      .catch((err) => console.log("SW registration failed", err));
-  }
-}, []);
+
+  // Save data
   useEffect(() => {
     localStorage.setItem("subscriptions", JSON.stringify(subscriptions));
     localStorage.setItem("total", total.toString());
     localStorage.setItem("costOfLiving", JSON.stringify(costOfLiving));
     localStorage.setItem("darkMode", darkMode.toString());
   }, [subscriptions, total, costOfLiving, darkMode]);
+
+  // Register service worker (PWA)
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then(() => console.log("Service Worker registered"))
+        .catch((err) => console.log("SW registration failed", err));
+    }
+  }, []);
+
+  // Plaid Link
+  const { open, ready } = usePlaidLink({
+    token: linkToken,
+    onSuccess: (public_token, metadata) => {
+      console.log("Public Token:", public_token);
+      alert("Bank connected successfully in Sandbox!\n\nPublic Token received.");
+      // Next step: send public_token to backend
+    },
+    onExit: (err, metadata) => {
+      console.log("User exited Plaid Link", err);
+    },
+  });
+
+  async function createLinkToken() {
+    setIsConnecting(true);
+    try {
+      const response = await fetch("/api/create-link-token", {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (data.link_token) {
+        setLinkToken(data.link_token);
+      } else {
+        alert("Failed to create link token");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Error connecting to server");
+    } finally {
+      setIsConnecting(false);
+    }
+  }
 
   function detectRecurring(transactions) {
     const groups = {};
@@ -152,14 +197,14 @@ useEffect(() => {
   function saveEdit() {
     if (!editName || !editAmount) return;
 
-    const newAmount = parseFloat(editAmount);
+    const newAmt = parseFloat(editAmount);
     const oldSub = subscriptions.find(s => s.id === editingId);
-    const difference = newAmount - (oldSub ? oldSub.amount : 0);
+    const difference = newAmt - (oldSub ? oldSub.amount : 0);
 
     setSubscriptions(prev =>
       prev.map(sub =>
         sub.id === editingId
-          ? { ...sub, name: editName, amount: newAmount, category: editCategory }
+          ? { ...sub, name: editName, amount: newAmt, category: editCategory }
           : sub
       ).sort((a, b) => b.amount - a.amount)
     );
@@ -242,8 +287,7 @@ useEffect(() => {
       margin: "0 auto",
       backgroundColor: bg,
       minHeight: "100vh",
-      color: text,
-      transition: "background 0.3s"
+      color: text
     }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
@@ -268,7 +312,7 @@ useEffect(() => {
         Find forgotten subscriptions & track living costs
       </p>
 
-      {/* View Mode Toggle */}
+      {/* View Mode */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
         <button
           onClick={() => setViewMode("monthly")}
@@ -339,8 +383,8 @@ useEffect(() => {
         <span style={{ fontSize: "18px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
       </div>
 
-      {/* Action Buttons */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+      {/* Buttons */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
         <label style={{
           display: "block",
           textAlign: "center",
@@ -371,6 +415,32 @@ useEffect(() => {
         </button>
       </div>
 
+      {/* Connect Bank Button */}
+      <button
+        onClick={() => {
+          if (linkToken) {
+            open();
+          } else {
+            createLinkToken();
+          }
+        }}
+        disabled={isConnecting}
+        style={{
+          width: "100%",
+          padding: "13px",
+          marginBottom: "12px",
+          backgroundColor: "#0f172a",
+          color: "white",
+          border: "none",
+          borderRadius: "10px",
+          fontWeight: "600",
+          fontSize: "14px",
+          opacity: isConnecting ? 0.7 : 1
+        }}
+      >
+        {isConnecting ? "Preparing..." : linkToken ? "Open Bank Connection" : "Connect Bank (Plaid)"}
+      </button>
+
       <button
         onClick={clearAllData}
         style={{
@@ -394,7 +464,7 @@ useEffect(() => {
         </p>
       )}
 
-      {/* Manual Add */}
+      {/* Add Subscription */}
       <div style={{ backgroundColor: card, borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
         <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Add Subscription</h3>
         <input
@@ -440,28 +510,12 @@ useEffect(() => {
           <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Your Subscriptions</h3>
           
           {subscriptions.map((sub) => (
-            <div key={sub.id} style={{
-              padding: "14px 0",
-              borderBottom: `1px solid ${border}`
-            }}>
+            <div key={sub.id} style={{ padding: "14px 0", borderBottom: `1px solid ${border}` }}>
               {editingId === sub.id ? (
                 <div>
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }}
-                  />
-                  <input
-                    type="number"
-                    value={editAmount}
-                    onChange={(e) => setEditAmount(e.target.value)}
-                    style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }}
-                  />
-                  <select
-                    value={editCategory}
-                    onChange={(e) => setEditCategory(e.target.value)}
-                    style={{ width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}
-                  >
+                  <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
+                  <input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
+                  <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}>
                     {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                   </select>
                   <div style={{ display: "flex", gap: "8px" }}>
@@ -483,29 +537,10 @@ useEffect(() => {
                       ${(viewMode === "yearly" ? sub.amount * 12 : sub.amount).toFixed(2)}
                     </div>
                     <div style={{ display: "flex", gap: "5px", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                      <button onClick={() => updateStatus(sub.id, "keep")} style={{
-                        padding: "4px 8px", fontSize: "11px",
-                        backgroundColor: sub.status === "keep" ? "#16a34a" : border,
-                        color: sub.status === "keep" ? "white" : text,
-                        border: "none", borderRadius: "6px"
-                      }}>Keep</button>
-                      <button onClick={() => updateStatus(sub.id, "cancel")} style={{
-                        padding: "4px 8px", fontSize: "11px",
-                        backgroundColor: sub.status === "cancel" ? "#dc2626" : border,
-                        color: sub.status === "cancel" ? "white" : text,
-                        border: "none", borderRadius: "6px"
-                      }}>Cancel</button>
-                      <button onClick={() => startEdit(sub)} style={{
-                        padding: "4px 8px", fontSize: "11px",
-                        backgroundColor: border, color: text,
-                        border: "none", borderRadius: "6px"
-                      }}>Edit</button>
-                      <button onClick={() => deleteSubscription(sub.id)} style={{
-                        padding: "4px 8px", fontSize: "11px",
-                        backgroundColor: darkMode ? "#450a0a" : "#fee2e2",
-                        color: "#ef4444",
-                        border: "none", borderRadius: "6px"
-                      }}>Delete</button>
+                      <button onClick={() => updateStatus(sub.id, "keep")} style={{ padding: "4px 8px", fontSize: "11px", backgroundColor: sub.status === "keep" ? "#16a34a" : border, color: sub.status === "keep" ? "white" : text, border: "none", borderRadius: "6px" }}>Keep</button>
+                      <button onClick={() => updateStatus(sub.id, "cancel")} style={{ padding: "4px 8px", fontSize: "11px", backgroundColor: sub.status === "cancel" ? "#dc2626" : border, color: sub.status === "cancel" ? "white" : text, border: "none", borderRadius: "6px" }}>Cancel</button>
+                      <button onClick={() => startEdit(sub)} style={{ padding: "4px 8px", fontSize: "11px", backgroundColor: border, color: text, border: "none", borderRadius: "6px" }}>Edit</button>
+                      <button onClick={() => deleteSubscription(sub.id)} style={{ padding: "4px 8px", fontSize: "11px", backgroundColor: darkMode ? "#450a0a" : "#fee2e2", color: "#ef4444", border: "none", borderRadius: "6px" }}>Delete</button>
                     </div>
                   </div>
                 </div>
@@ -514,14 +549,7 @@ useEffect(() => {
           ))}
         </div>
       ) : (
-        <div style={{ 
-          backgroundColor: card, 
-          borderRadius: "12px", 
-          padding: "40px 20px", 
-          marginBottom: "18px",
-          textAlign: "center",
-          color: muted
-        }}>
+        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "40px 20px", marginBottom: "18px", textAlign: "center", color: muted }}>
           <div style={{ fontSize: "16px", marginBottom: "8px" }}>No subscriptions yet</div>
           <div style={{ fontSize: "14px" }}>Upload a CSV or add one manually to get started</div>
         </div>
@@ -532,38 +560,18 @@ useEffect(() => {
         <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Cost of Living</h3>
         
         {["housing", "food", "transport", "utilities", "other"].map((field) => (
-          <div key={field} style={{ 
-            display: "flex", 
-            justifyContent: "space-between", 
-            alignItems: "center",
-            marginBottom: "12px"
-}}>
+          <div key={field} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <label style={{ textTransform: "capitalize", fontSize: "14px" }}>{field}</label>
             <input
               type="number"
               value={costOfLiving[field]}
               onChange={(e) => updateCostOfLiving(field, e.target.value)}
-              style={{
-                width: "110px",
-                padding: "9px",
-                border: `1px solid ${border}`,
-                borderRadius: "8px",
-                textAlign: "right",
-                background: bg,
-                color: text
-              }}
+              style={{ width: "110px", padding: "9px", border: `1px solid ${border}`, borderRadius: "8px", textAlign: "right", background: bg, color: text }}
             />
           </div>
         ))}
 
-        <div style={{ 
-          marginTop: "14px", 
-          paddingTop: "14px", 
-          borderTop: `1px solid ${border}`,
-          display: "flex",
-          justifyContent: "space-between",
-          fontWeight: "600"
-        }}>
+        <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: `1px solid ${border}`, display: "flex", justifyContent: "space-between", fontWeight: "600" }}>
           <span>Total Living Costs ({viewMode})</span>
           <span>${displayCOL.toFixed(2)}</span>
         </div>
