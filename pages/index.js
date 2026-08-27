@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-
 export default function Home() {
   const [subscriptions, setSubscriptions] = useState([]);
   const [total, setTotal] = useState(0);
@@ -36,7 +35,14 @@ export default function Home() {
     if (savedCOL) setCostOfLiving(JSON.parse(savedCOL));
     if (savedDark) setDarkMode(savedDark === "true");
   }, []);
-
+useEffect(() => {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then(() => console.log("Service Worker registered"))
+      .catch((err) => console.log("SW registration failed", err));
+  }
+}, []);
   useEffect(() => {
     localStorage.setItem("subscriptions", JSON.stringify(subscriptions));
     localStorage.setItem("total", total.toString());
