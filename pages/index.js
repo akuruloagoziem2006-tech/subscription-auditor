@@ -11,6 +11,7 @@ export default function Home() {
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editCategory, setEditCategory] = useState("Entertainment");
+  const [filterCategory, setFilterCategory] = useState("All");
 
   const [costOfLiving, setCostOfLiving] = useState({
     housing: 0,
@@ -24,14 +25,12 @@ export default function Home() {
   const [newAmount, setNewAmount] = useState("");
   const [newCategory, setNewCategory] = useState("Entertainment");
 
-  // Plaid states
   const [linkToken, setLinkToken] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
-  const [plaidStatus, setPlaidStatus] = useState("idle"); // idle | preparing | ready | connecting | success | error
+  const [plaidStatus, setPlaidStatus] = useState("idle");
 
   const categories = ["Entertainment", "Music", "Health", "Software", "Shopping", "Other"];
 
-  // Load saved data
   useEffect(() => {
     const savedSubs = localStorage.getItem("subscriptions");
     const savedTotal = localStorage.getItem("total");
@@ -44,7 +43,6 @@ export default function Home() {
     if (savedDark) setDarkMode(savedDark === "true");
   }, []);
 
-  // Save data
   useEffect(() => {
     localStorage.setItem("subscriptions", JSON.stringify(subscriptions));
     localStorage.setItem("total", total.toString());
@@ -52,25 +50,17 @@ export default function Home() {
     localStorage.setItem("darkMode", darkMode.toString());
   }, [subscriptions, total, costOfLiving, darkMode]);
 
-  // Register service worker (PWA)
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .register("/sw.js")
-        .then(() => console.log("Service Worker registered"))
-        .catch((err) => console.log("SW registration failed", err));
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
   }, []);
 
-  // Create Link Token
   async function createLinkToken() {
     setPlaidStatus("preparing");
     try {
-      const response = await fetch("/api/create-link-token", {
-        method: "POST",
-      });
+      const response = await fetch("/api/create-link-token", { method: "POST" });
       const data = await response.json();
-
       if (data.link_token) {
         setLinkToken(data.link_token);
         setPlaidStatus("ready");
@@ -79,26 +69,21 @@ export default function Home() {
         alert("Failed to create link token");
       }
     } catch (error) {
-      console.error(error);
       setPlaidStatus("error");
       alert("Error connecting to server");
     }
   }
 
-  // Plaid Link
   const { open, ready } = usePlaidLink({
     token: linkToken,
     onSuccess: async (public_token) => {
       setPlaidStatus("connecting");
-
       try {
-        // Exchange public_token
         const exchangeRes = await fetch("/api/exchange-public-token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ public_token }),
         });
-
         const exchangeData = await exchangeRes.json();
 
         if (!exchangeData.access_token) {
@@ -109,13 +94,11 @@ export default function Home() {
 
         setAccessToken(exchangeData.access_token);
 
-        // Get transactions
         const txRes = await fetch("/api/get-transactions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ access_token: exchangeData.access_token }),
         });
-
         const txData = await txRes.json();
 
         if (txData.transactions && txData.transactions.length > 0) {
@@ -131,41 +114,35 @@ export default function Home() {
           alert("No transactions found.");
         }
       } catch (error) {
-        console.error(error);
         setPlaidStatus("error");
         alert("Error during bank connection process");
       }
     },
-    onExit: () => {
-      setPlaidStatus(linkToken ? "ready" : "idle");
-    },
+    onExit: () => setPlaidStatus(linkToken ? "ready" : "idle"),
   });
 
   function detectRecurring(transactions) {
     const groups = {};
-
     transactions.forEach((tx) => {
       let key = (tx.description || "")
         .toLowerCase()
         .replace(/[0-9]/g, "")
         .replace(/[^a-z\s]/g, "")
         .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b(ltd|inc|llc|payment|debit|credit|card)\b/g, "")
         .trim();
 
-      key = key.replace(/\b(ltd|inc|llc|payment|debit|credit|card)\b/g, "").trim();
       if (key.length < 3) return;
-
       if (!groups[key]) groups[key] = [];
       groups[key].push(tx);
     });
 
     const recurring = [];
-
     Object.keys(groups).forEach((key) => {
       const items = groups[key];
       if (items.length >= 2) {
         const avgAmount = items.reduce((sum, item) => sum + Math.abs(item.amount), 0) / items.length;
-
         let category = "Other";
         const lower = key.toLowerCase();
         if (lower.includes("netflix") || lower.includes("disney") || lower.includes("hulu") || lower.includes("youtube")) category = "Entertainment";
@@ -183,48 +160,39 @@ export default function Home() {
         });
       }
     });
-
     return recurring.sort((a, b) => b.amount - a.amount);
   }
 
   function handleFileUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const text = event.target.result;
         const lines = text.split("\n").filter(line => line.trim() !== "");
-
         const transactions = [];
         for (let i = 1; i < lines.length; i++) {
           const parts = lines[i].split(",");
           if (parts.length >= 3) {
             const description = parts[1].trim();
             const amount = parseFloat(parts[2]);
-            if (description && !isNaN(amount)) {
-              transactions.push({ description, amount });
-            }
+            if (description && !isNaN(amount)) transactions.push({ description, amount });
           }
         }
-
         const detected = detectRecurring(transactions);
         setSubscriptions(detected);
-        const totalAmount = detected.reduce((sum, sub) => sum + sub.amount, 0);
-        setTotal(totalAmount);
+        setTotal(detected.reduce((sum, sub) => sum + sub.amount, 0));
         setMessage(`Found ${detected.length} recurring subscriptions`);
       } catch (err) {
-        setMessage("Error reading file. Please use a valid CSV.");
+        setMessage("Error reading file.");
       }
     };
     reader.readAsText(file);
   }
 
   function updateStatus(id, newStatus) {
-    setSubscriptions(prev =>
-      prev.map(sub => sub.id === id ? { ...sub, status: newStatus } : sub)
-    );
+    setSubscriptions(prev => prev.map(sub => sub.id === id ? { ...sub, status: newStatus } : sub));
   }
 
   function deleteSubscription(id) {
@@ -242,36 +210,21 @@ export default function Home() {
 
   function saveEdit() {
     if (!editName || !editAmount) return;
-
     const newAmt = parseFloat(editAmount);
     const oldSub = subscriptions.find(s => s.id === editingId);
     const difference = newAmt - (oldSub ? oldSub.amount : 0);
-
     setSubscriptions(prev =>
-      prev.map(sub =>
-        sub.id === editingId
-          ? { ...sub, name: editName, amount: newAmt, category: editCategory }
-          : sub
-      ).sort((a, b) => b.amount - a.amount)
+      prev.map(sub => sub.id === editingId ? { ...sub, name: editName, amount: newAmt, category: editCategory } : sub)
+        .sort((a, b) => b.amount - a.amount)
     );
-
     setTotal(prev => prev + difference);
     setEditingId(null);
   }
 
   function addManualSubscription() {
     if (!newName || !newAmount) return;
-
     const amount = parseFloat(newAmount);
-    const newSub = {
-      id: Date.now().toString(),
-      name: newName,
-      amount,
-      count: 1,
-      status: "keep",
-      category: newCategory
-    };
-
+    const newSub = { id: Date.now().toString(), name: newName, amount, count: 1, status: "keep", category: newCategory };
     setSubscriptions(prev => [...prev, newSub].sort((a, b) => b.amount - a.amount));
     setTotal(prev => prev + amount);
     setNewName("");
@@ -279,10 +232,7 @@ export default function Home() {
   }
 
   function updateCostOfLiving(field, value) {
-    setCostOfLiving(prev => ({
-      ...prev,
-      [field]: parseFloat(value) || 0
-    }));
+    setCostOfLiving(prev => ({ ...prev, [field]: parseFloat(value) || 0 }));
   }
 
   function exportData() {
@@ -290,7 +240,6 @@ export default function Home() {
     subscriptions.forEach(sub => {
       csv += `"\( {sub.name}", \){sub.amount.toFixed(2)},\( {sub.category}, \){sub.status},${sub.count}\n`;
     });
-
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -309,14 +258,23 @@ export default function Home() {
       setPlaidStatus("idle");
       setLinkToken(null);
       setAccessToken(null);
+      setFilterCategory("All");
     }
   }
 
-  const totalCOL = Object.values(costOfLiving).reduce((a, b) => a + b, 0);
-  const savings = subscriptions
-    .filter(sub => sub.status === "cancel")
-    .reduce((sum, sub) => sum + sub.amount, 0);
+  // Filtered subscriptions
+  const filteredSubs = filterCategory === "All"
+    ? subscriptions
+    : subscriptions.filter(sub => sub.category === filterCategory);
 
+  // Category breakdown
+  const categoryTotals = {};
+  subscriptions.forEach(sub => {
+    categoryTotals[sub.category] = (categoryTotals[sub.category] || 0) + sub.amount;
+  });
+
+  const totalCOL = Object.values(costOfLiving).reduce((a, b) => a + b, 0);
+  const savings = subscriptions.filter(sub => sub.status === "cancel").reduce((sum, sub) => sum + sub.amount, 0);
   const displayTotal = viewMode === "yearly" ? total * 12 : total;
   const displaySavings = viewMode === "yearly" ? savings * 12 : savings;
   const displayCOL = viewMode === "yearly" ? totalCOL * 12 : totalCOL;
@@ -329,35 +287,14 @@ export default function Home() {
   const border = darkMode ? "#334155" : "#e2e8f0";
 
   return (
-    <div style={{ 
-      padding: "20px 16px", 
-      fontFamily: "system-ui, -apple-system, sans-serif", 
-      maxWidth: "720px",
-      margin: "0 auto",
-      backgroundColor: bg,
-      minHeight: "100vh",
-      color: text
-    }}>
-      {/* Header */}
+    <div style={{ padding: "20px 16px", fontFamily: "system-ui, -apple-system, sans-serif", maxWidth: "720px", margin: "0 auto", backgroundColor: bg, minHeight: "100vh", color: text }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
         <h1 style={{ fontSize: "24px", fontWeight: "700", margin: 0 }}>Subscription Auditor</h1>
-        <button
-          onClick={() => setDarkMode(!darkMode)}
-          style={{
-            padding: "6px 14px",
-            borderRadius: "20px",
-            border: `1px solid ${border}`,
-            background: card,
-            color: text,
-            fontSize: "13px"
-          }}
-        >
+        <button onClick={() => setDarkMode(!darkMode)} style={{ padding: "6px 14px", borderRadius: "20px", border: `1px solid ${border}`, background: card, color: text, fontSize: "13px" }}>
           {darkMode ? "Light" : "Dark"}
         </button>
       </div>
-      <p style={{ color: muted, marginBottom: "16px", fontSize: "14px" }}>
-        Find forgotten subscriptions & track living costs
-      </p>
+      <p style={{ color: muted, marginBottom: "16px", fontSize: "14px" }}>Find forgotten subscriptions & track living costs</p>
 
       {/* View Mode */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
@@ -365,7 +302,7 @@ export default function Home() {
         <button onClick={() => setViewMode("yearly")} style={{ flex: 1, padding: "8px", borderRadius: "8px", border: "none", background: viewMode === "yearly" ? "#2563eb" : card, color: viewMode === "yearly" ? "white" : text, fontWeight: "600", fontSize: "13px" }}>Yearly</button>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
         <div style={{ backgroundColor: card, padding: "16px", borderRadius: "12px" }}>
           <div style={{ fontSize: "13px", color: muted }}>{viewMode === "yearly" ? "Yearly" : "Monthly"} Recurring</div>
@@ -377,13 +314,25 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Grand Total */}
       <div style={{ backgroundColor: darkMode ? "#1e293b" : "#0f172a", color: "white", padding: "14px 18px", borderRadius: "12px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: "14px" }}>Total {viewMode === "yearly" ? "Yearly" : "Monthly"}</span>
         <span style={{ fontSize: "18px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
       </div>
 
-      {/* Action Buttons */}
+      {/* Category Breakdown */}
+      {subscriptions.length > 0 && (
+        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
+          <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Spending by Category</h3>
+          {Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]).map(([cat, amount]) => (
+            <div key={cat} style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "14px" }}>
+              <span>{cat}</span>
+              <span style={{ fontWeight: "600" }}>${(viewMode === "yearly" ? amount * 12 : amount).toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Buttons */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
         <label style={{ display: "block", textAlign: "center", padding: "12px", backgroundColor: "#2563eb", color: "white", borderRadius: "10px", fontWeight: "600", fontSize: "14px" }}>
           Upload CSV
@@ -392,26 +341,16 @@ export default function Home() {
         <button onClick={exportData} style={{ padding: "12px", backgroundColor: card, color: text, border: `1px solid ${border}`, borderRadius: "10px", fontWeight: "600", fontSize: "14px" }}>Export CSV</button>
       </div>
 
-      {/* Connect Bank Button */}
       <button
         onClick={() => {
-          if (plaidStatus === "ready" && ready) {
-            open();
-          } else if (plaidStatus === "idle" || plaidStatus === "error" || plaidStatus === "success") {
-            createLinkToken();
-          }
+          if (plaidStatus === "ready" && ready) open();
+          else if (["idle", "error", "success"].includes(plaidStatus)) createLinkToken();
         }}
         disabled={plaidStatus === "preparing" || plaidStatus === "connecting"}
         style={{
-          width: "100%",
-          padding: "13px",
-          marginBottom: "12px",
+          width: "100%", padding: "13px", marginBottom: "12px",
           backgroundColor: plaidStatus === "success" ? "#16a34a" : "#0f172a",
-          color: "white",
-          border: "none",
-          borderRadius: "10px",
-          fontWeight: "600",
-          fontSize: "14px",
+          color: "white", border: "none", borderRadius: "10px", fontWeight: "600", fontSize: "14px",
           opacity: plaidStatus === "preparing" || plaidStatus === "connecting" ? 0.7 : 1
         }}
       >
@@ -429,6 +368,16 @@ export default function Home() {
 
       {message && <p style={{ textAlign: "center", color: "#2563eb", fontSize: "14px", marginBottom: "16px" }}>{message}</p>}
 
+      {/* Filter */}
+      {subscriptions.length > 0 && (
+        <div style={{ marginBottom: "16px", overflowX: "auto", whiteSpace: "nowrap" }}>
+          <button onClick={() => setFilterCategory("All")} style={{ padding: "6px 12px", marginRight: "6px", borderRadius: "20px", border: "none", background: filterCategory === "All" ? "#2563eb" : card, color: filterCategory === "All" ? "white" : text, fontSize: "13px" }}>All</button>
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setFilterCategory(cat)} style={{ padding: "6px 12px", marginRight: "6px", borderRadius: "20px", border: "none", background: filterCategory === cat ? "#2563eb" : card, color: filterCategory === cat ? "white" : text, fontSize: "13px" }}>{cat}</button>
+          ))}
+        </div>
+      )}
+
       {/* Add Subscription */}
       <div style={{ backgroundColor: card, borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
         <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Add Subscription</h3>
@@ -440,11 +389,11 @@ export default function Home() {
         <button onClick={addManualSubscription} style={{ width: "100%", padding: "12px", backgroundColor: "#0f172a", color: "white", border: "none", borderRadius: "8px", fontWeight: "600" }}>Add Subscription</button>
       </div>
 
-      {/* Subscriptions List */}
-      {subscriptions.length > 0 ? (
+      {/* Subscriptions */}
+      {filteredSubs.length > 0 ? (
         <div style={{ backgroundColor: card, borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
-          <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Your Subscriptions</h3>
-          {subscriptions.map((sub) => (
+          <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Your Subscriptions {filterCategory !== "All" && `(${filterCategory})`}</h3>
+          {filteredSubs.map((sub) => (
             <div key={sub.id} style={{ padding: "14px 0", borderBottom: `1px solid ${border}` }}>
               {editingId === sub.id ? (
                 <div>
