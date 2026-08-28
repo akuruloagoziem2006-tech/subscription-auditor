@@ -446,6 +446,11 @@ export default function Home() {
         <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: `1px solid ${border}`, display: "flex", justifyContent: "space-between", fontWeight: "600" }}>
           <span>Total Living Costs ({viewMode})</span>
           <span>${displayCOL.toFixed(2)}</span>
+{/* Footer Links */}
+<div style={{ textAlign: "center", marginTop: "32px", paddingBottom: "20px", fontSize: "13px", color: muted }}>
+  <a href="/privacy" style={{ color: muted, marginRight: "16px" }}>Privacy Policy</a>
+  <a href="/terms" style={{ color: muted }}>Terms of Service</a>
+</div>
         </div>
       </div>
     </div>
