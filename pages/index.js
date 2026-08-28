@@ -64,11 +64,54 @@ export default function Home() {
   // Plaid Link
   const { open, ready } = usePlaidLink({
     token: linkToken,
-    onSuccess: (public_token, metadata) => {
-      console.log("Public Token:", public_token);
-      alert("Bank connected successfully in Sandbox!\n\nPublic Token received.");
-      // Next step: send public_token to backend
-    },
+    onSuccess: async (public_token, metadata) => {
+  console.log("Public Token:", public_token);
+
+  try {
+    // 1. Exchange public_token for access_token
+    const exchangeRes = await fetch("/api/exchange-public-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ public_token }),
+    });
+
+    const exchangeData = await exchangeRes.json();
+
+    if (!exchangeData.access_token) {
+      alert("Failed to get access token");
+      return;
+    }
+
+    console.log("Access Token received");
+
+    // 2. Get transactions using the access_token
+    const txRes = await fetch("/api/get-transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ access_token: exchangeData.access_token }),
+    });
+
+    const txData = await txRes.json();
+
+    if (txData.transactions && txData.transactions.length > 0) {
+      console.log("Transactions received:", txData.transactions.length);
+
+      // 3. Run your existing detection logic
+      const detected = detectRecurring(txData.transactions);
+      setSubscriptions(detected);
+      const totalAmount = detected.reduce((sum, sub) => sum + sub.amount, 0);
+      setTotal(totalAmount);
+      setMessage(`Found ${detected.length} recurring subscriptions from bank`);
+
+      alert(`Success! Found ${detected.length} recurring subscriptions from your bank.`);
+    } else {
+      alert("No transactions found or error fetching them.");
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Error during bank connection process");
+  }
+},
     onExit: (err, metadata) => {
       console.log("User exited Plaid Link", err);
     },
