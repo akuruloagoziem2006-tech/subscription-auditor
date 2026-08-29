@@ -12,13 +12,11 @@ export default function Home() {
   const [editAmount, setEditAmount] = useState("");
   const [editCategory, setEditCategory] = useState("Entertainment");
   const [filterCategory, setFilterCategory] = useState("All");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [lastSynced, setLastSynced] = useState(null);
 
   const [costOfLiving, setCostOfLiving] = useState({
-    housing: 0,
-    food: 0,
-    transport: 0,
-    utilities: 0,
-    other: 0
+    housing: 0, food: 0, transport: 0, utilities: 0, other: 0
   });
 
   const [newName, setNewName] = useState("");
@@ -29,18 +27,20 @@ export default function Home() {
   const [accessToken, setAccessToken] = useState(null);
   const [plaidStatus, setPlaidStatus] = useState("idle");
 
-  const categories = ["Entertainment", "Music", "Health", "Software", "Shopping", "Other"];
+  const categories = ["Entertainment", "Music", "Health", "Software", "Shopping", "Food", "Other"];
 
   useEffect(() => {
     const savedSubs = localStorage.getItem("subscriptions");
     const savedTotal = localStorage.getItem("total");
     const savedCOL = localStorage.getItem("costOfLiving");
     const savedDark = localStorage.getItem("darkMode");
+    const savedSync = localStorage.getItem("lastSynced");
 
     if (savedSubs) setSubscriptions(JSON.parse(savedSubs));
     if (savedTotal) setTotal(parseFloat(savedTotal));
     if (savedCOL) setCostOfLiving(JSON.parse(savedCOL));
     if (savedDark) setDarkMode(savedDark === "true");
+    if (savedSync) setLastSynced(savedSync);
   }, []);
 
   useEffect(() => {
@@ -48,7 +48,8 @@ export default function Home() {
     localStorage.setItem("total", total.toString());
     localStorage.setItem("costOfLiving", JSON.stringify(costOfLiving));
     localStorage.setItem("darkMode", darkMode.toString());
-  }, [subscriptions, total, costOfLiving, darkMode]);
+    if (lastSynced) localStorage.setItem("lastSynced", lastSynced);
+  }, [subscriptions, total, costOfLiving, darkMode, lastSynced]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -107,6 +108,7 @@ export default function Home() {
           const totalAmount = detected.reduce((sum, sub) => sum + sub.amount, 0);
           setTotal(totalAmount);
           setMessage(`Found ${detected.length} recurring subscriptions from bank`);
+          setLastSynced(new Date().toLocaleString());
           setPlaidStatus("success");
           alert(`Success! Found ${detected.length} recurring subscriptions from your bank.`);
         } else {
@@ -145,10 +147,20 @@ export default function Home() {
         const avgAmount = items.reduce((sum, item) => sum + Math.abs(item.amount), 0) / items.length;
         let category = "Other";
         const lower = key.toLowerCase();
-        if (lower.includes("netflix") || lower.includes("disney") || lower.includes("hulu") || lower.includes("youtube")) category = "Entertainment";
-        else if (lower.includes("spotify") || lower.includes("apple music") || lower.includes("tidal")) category = "Music";
-        else if (lower.includes("gym") || lower.includes("fitness") || lower.includes("health")) category = "Health";
-        else if (lower.includes("adobe") || lower.includes("microsoft") || lower.includes("google") || lower.includes("dropbox")) category = "Software";
+
+        if (lower.includes("netflix") || lower.includes("disney") || lower.includes("hulu") || lower.includes("youtube") || lower.includes("prime video") || lower.includes("hbo") || lower.includes("paramount") || lower.includes("peacock") || lower.includes("crunchyroll") || lower.includes("apple tv")) {
+          category = "Entertainment";
+        } else if (lower.includes("spotify") || lower.includes("apple music") || lower.includes("tidal") || lower.includes("youtube music") || lower.includes("deezer") || lower.includes("pandora") || lower.includes("amazon music")) {
+          category = "Music";
+        } else if (lower.includes("gym") || lower.includes("fitness") || lower.includes("health") || lower.includes("peloton") || lower.includes("planet fitness") || lower.includes("yoga") || lower.includes("calm") || lower.includes("headspace") || lower.includes("myfitnesspal")) {
+          category = "Health";
+        } else if (lower.includes("adobe") || lower.includes("microsoft") || lower.includes("google") || lower.includes("dropbox") || lower.includes("notion") || lower.includes("slack") || lower.includes("zoom") || lower.includes("canva") || lower.includes("github") || lower.includes("openai") || lower.includes("chatgpt") || lower.includes("grammarly") || lower.includes("lastpass") || lower.includes("1password") || lower.includes("icloud")) {
+          category = "Software";
+        } else if (lower.includes("amazon") || lower.includes("ebay") || lower.includes("walmart") || lower.includes("target") || lower.includes("shopify") || lower.includes("etsy") || lower.includes("best buy") || lower.includes("aliexpress")) {
+          category = "Shopping";
+        } else if (lower.includes("mcdonald") || lower.includes("starbucks") || lower.includes("uber eats") || lower.includes("doordash") || lower.includes("grubhub") || lower.includes("chipotle") || lower.includes("dunkin") || lower.includes("coffee") || lower.includes("restaurant")) {
+          category = "Food";
+        }
 
         recurring.push({
           id: key + Date.now() + Math.random(),
@@ -184,6 +196,7 @@ export default function Home() {
         setSubscriptions(detected);
         setTotal(detected.reduce((sum, sub) => sum + sub.amount, 0));
         setMessage(`Found ${detected.length} recurring subscriptions`);
+        setLastSynced(new Date().toLocaleString());
       } catch (err) {
         setMessage("Error reading file.");
       }
@@ -196,6 +209,7 @@ export default function Home() {
   }
 
   function deleteSubscription(id) {
+    if (!confirm("Are you sure you want to delete this subscription?")) return;
     const sub = subscriptions.find(s => s.id === id);
     if (sub) setTotal(prev => prev - sub.amount);
     setSubscriptions(prev => prev.filter(sub => sub.id !== id));
@@ -259,15 +273,15 @@ export default function Home() {
       setLinkToken(null);
       setAccessToken(null);
       setFilterCategory("All");
+      setSearchTerm("");
+      setLastSynced(null);
     }
   }
 
-  // Filtered subscriptions
-  const filteredSubs = filterCategory === "All"
-    ? subscriptions
-    : subscriptions.filter(sub => sub.category === filterCategory);
+  const filteredSubs = subscriptions
+    .filter(sub => filterCategory === "All" || sub.category === filterCategory)
+    .filter(sub => sub.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Category breakdown
   const categoryTotals = {};
   subscriptions.forEach(sub => {
     categoryTotals[sub.category] = (categoryTotals[sub.category] || 0) + sub.amount;
@@ -294,15 +308,19 @@ export default function Home() {
           {darkMode ? "Light" : "Dark"}
         </button>
       </div>
-      <p style={{ color: muted, marginBottom: "16px", fontSize: "14px" }}>Find forgotten subscriptions & track living costs</p>
+      <p style={{ color: muted, marginBottom: "8px", fontSize: "14px" }}>Find forgotten subscriptions & track living costs</p>
+      
+      {lastSynced && (
+        <p style={{ color: muted, marginBottom: "16px", fontSize: "12px" }}>
+          Last synced: {lastSynced}
+        </p>
+      )}
 
-      {/* View Mode */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
         <button onClick={() => setViewMode("monthly")} style={{ flex: 1, padding: "8px", borderRadius: "8px", border: "none", background: viewMode === "monthly" ? "#2563eb" : card, color: viewMode === "monthly" ? "white" : text, fontWeight: "600", fontSize: "13px" }}>Monthly</button>
         <button onClick={() => setViewMode("yearly")} style={{ flex: 1, padding: "8px", borderRadius: "8px", border: "none", background: viewMode === "yearly" ? "#2563eb" : card, color: viewMode === "yearly" ? "white" : text, fontWeight: "600", fontSize: "13px" }}>Yearly</button>
       </div>
 
-      {/* Summary */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
         <div style={{ backgroundColor: card, padding: "16px", borderRadius: "12px" }}>
           <div style={{ fontSize: "13px", color: muted }}>{viewMode === "yearly" ? "Yearly" : "Monthly"} Recurring</div>
@@ -319,7 +337,6 @@ export default function Home() {
         <span style={{ fontSize: "18px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
       </div>
 
-      {/* Category Breakdown */}
       {subscriptions.length > 0 && (
         <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
           <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Spending by Category</h3>
@@ -332,7 +349,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Buttons */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
         <label style={{ display: "block", textAlign: "center", padding: "12px", backgroundColor: "#2563eb", color: "white", borderRadius: "10px", fontWeight: "600", fontSize: "14px" }}>
           Upload CSV
@@ -368,6 +384,17 @@ export default function Home() {
 
       {message && <p style={{ textAlign: "center", color: "#2563eb", fontSize: "14px", marginBottom: "16px" }}>{message}</p>}
 
+      {/* Search */}
+      {subscriptions.length > 0 && (
+        <input
+          type="text"
+          placeholder="Search subscriptions..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          style={{ width: "100%", padding: "11px", marginBottom: "12px", borderRadius: "8px", border: `1px solid ${border}`, background: card, color: text, boxSizing: "border-box" }}
+        />
+      )}
+
       {/* Filter */}
       {subscriptions.length > 0 && (
         <div style={{ marginBottom: "16px", overflowX: "auto", whiteSpace: "nowrap" }}>
@@ -389,10 +416,12 @@ export default function Home() {
         <button onClick={addManualSubscription} style={{ width: "100%", padding: "12px", backgroundColor: "#0f172a", color: "white", border: "none", borderRadius: "8px", fontWeight: "600" }}>Add Subscription</button>
       </div>
 
-      {/* Subscriptions */}
+      {/* Subscriptions List */}
       {filteredSubs.length > 0 ? (
         <div style={{ backgroundColor: card, borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
-          <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Your Subscriptions {filterCategory !== "All" && `(${filterCategory})`}</h3>
+          <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>
+            Your Subscriptions {filterCategory !== "All" && `(${filterCategory})`}
+          </h3>
           {filteredSubs.map((sub) => (
             <div key={sub.id} style={{ padding: "14px 0", borderBottom: `1px solid ${border}` }}>
               {editingId === sub.id ? (
@@ -435,7 +464,7 @@ export default function Home() {
       )}
 
       {/* Cost of Living */}
-      <div style={{ backgroundColor: card, borderRadius: "12px", padding: "18px" }}>
+      <div style={{ backgroundColor: card, borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
         <h3 style={{ margin: "0 0 14px 0", fontSize: "16px", fontWeight: "600" }}>Cost of Living</h3>
         {["housing", "food", "transport", "utilities", "other"].map((field) => (
           <div key={field} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -446,12 +475,13 @@ export default function Home() {
         <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: `1px solid ${border}`, display: "flex", justifyContent: "space-between", fontWeight: "600" }}>
           <span>Total Living Costs ({viewMode})</span>
           <span>${displayCOL.toFixed(2)}</span>
-{/* Footer Links */}
-<div style={{ textAlign: "center", marginTop: "32px", paddingBottom: "20px", fontSize: "13px", color: muted }}>
-  <a href="/privacy" style={{ color: muted, marginRight: "16px" }}>Privacy Policy</a>
-  <a href="/terms" style={{ color: muted }}>Terms of Service</a>
-</div>
         </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: "center", marginTop: "24px", paddingBottom: "20px", fontSize: "13px", color: muted }}>
+        <a href="/privacy" style={{ color: muted, marginRight: "16px" }}>Privacy Policy</a>
+        <a href="/terms" style={{ color: muted }}>Terms of Service</a>
       </div>
     </div>
   );
