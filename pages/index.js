@@ -17,6 +17,7 @@ export default function Home() {
   const [sortBy, setSortBy] = useState("amount-desc");
   const [lastSynced, setLastSynced] = useState(null);
   const [showCostOfLiving, setShowCostOfLiving] = useState(false);
+  const [showTip, setShowTip] = useState(true);
 
   const [costOfLiving, setCostOfLiving] = useState({
     housing: 0, food: 0, transport: 0, utilities: 0, other: 0
@@ -39,12 +40,14 @@ export default function Home() {
     const savedCOL = localStorage.getItem("costOfLiving");
     const savedDark = localStorage.getItem("darkMode");
     const savedSync = localStorage.getItem("lastSynced");
+    const tipDismissed = localStorage.getItem("tipDismissed");
 
     if (savedSubs) setSubscriptions(JSON.parse(savedSubs));
     if (savedTotal) setTotal(parseFloat(savedTotal));
     if (savedCOL) setCostOfLiving(JSON.parse(savedCOL));
     if (savedDark) setDarkMode(savedDark === "true");
     if (savedSync) setLastSynced(savedSync);
+    if (tipDismissed === "true") setShowTip(false);
   }, []);
 
   useEffect(() => {
@@ -218,6 +221,11 @@ export default function Home() {
     setSubscriptions(prev => prev.map(sub => sub.id === id ? { ...sub, reviewed: !sub.reviewed } : sub));
   }
 
+  function clearAllReviewed() {
+    if (!confirm("Clear reviewed status from all subscriptions?")) return;
+    setSubscriptions(prev => prev.map(sub => ({ ...sub, reviewed: false })));
+  }
+
   function quickChangeCategory(id, newCat) {
     setSubscriptions(prev => prev.map(sub => sub.id === id ? { ...sub, category: newCat } : sub));
   }
@@ -273,16 +281,17 @@ export default function Home() {
     setCostOfLiving(prev => ({ ...prev, [field]: parseFloat(value) || 0 }));
   }
 
-  function exportData() {
+  function exportData(onlyFiltered = false) {
+    const dataToExport = onlyFiltered ? filteredSubs : subscriptions;
     let csv = "Name,Amount,Category,Status,Count,Notes,Reviewed\n";
-    subscriptions.forEach(sub => {
+    dataToExport.forEach(sub => {
       csv += `"\( {sub.name}", \){sub.amount.toFixed(2)},\( {sub.category}, \){sub.status},\( {sub.count}," \){sub.notes || ""}",${sub.reviewed ? "Yes" : "No"}\n`;
     });
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "subscriptions-export.csv";
+    a.download = onlyFiltered ? "filtered-subscriptions.csv" : "subscriptions-export.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -302,6 +311,11 @@ export default function Home() {
     }
   }
 
+  function dismissTip() {
+    setShowTip(false);
+    localStorage.setItem("tipDismissed", "true");
+  }
+
   let filteredSubs = subscriptions
     .filter(sub => filterCategory === "All" || sub.category === filterCategory)
     .filter(sub => sub.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -317,6 +331,7 @@ export default function Home() {
   });
 
   const maxCategoryAmount = Math.max(...Object.values(categoryTotals), 1);
+  const reviewedCount = subscriptions.filter(s => s.reviewed).length;
 
   const totalCOL = Object.values(costOfLiving).reduce((a, b) => a + b, 0);
   const savings = subscriptions.filter(sub => sub.status === "cancel").reduce((sum, sub) => sum + sub.amount, 0);
@@ -347,12 +362,22 @@ export default function Home() {
         <p style={{ color: muted, marginBottom: "14px", fontSize: "12px" }}>Last synced: {lastSynced}</p>
       )}
 
+      {/* Onboarding Tip */}
+      {showTip && subscriptions.length === 0 && (
+        <div style={{ backgroundColor: darkMode ? "#1e3a5f" : "#eff6ff", border: darkMode ? "1px solid #1e40af" : "1px solid #bfdbfe", borderRadius: "12px", padding: "14px", marginBottom: "14px", position: "relative" }}>
+          <button onClick={dismissTip} style={{ position: "absolute", top: "8px", right: "10px", background: "none", border: "none", color: muted, fontSize: "16px", cursor: "pointer" }}>×</button>
+          <div style={{ fontWeight: "600", fontSize: "14px", marginBottom: "4px" }}>Getting Started</div>
+          <div style={{ fontSize: "13px", color: muted, lineHeight: "1.4" }}>
+            Upload a CSV of your bank transactions or connect your bank with Plaid to automatically detect recurring subscriptions.
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
         <button onClick={() => setViewMode("monthly")} style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: viewMode === "monthly" ? "#2563eb" : card, color: viewMode === "monthly" ? "white" : text, fontWeight: "600", fontSize: "13px" }}>Monthly</button>
         <button onClick={() => setViewMode("yearly")} style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: viewMode === "yearly" ? "#2563eb" : card, color: viewMode === "yearly" ? "white" : text, fontWeight: "600", fontSize: "13px" }}>Yearly</button>
       </div>
 
-      {/* Summary Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
         <div style={{ backgroundColor: card, padding: "14px", borderRadius: "12px" }}>
           <div style={{ fontSize: "12px", color: muted }}>{viewMode === "yearly" ? "Yearly" : "Monthly"} Recurring</div>
@@ -364,7 +389,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Yearly Savings Highlight */}
       {savings > 0 && (
         <div style={{ backgroundColor: darkMode ? "#052e16" : "#f0fdf4", border: darkMode ? "1px solid #166534" : "1px solid #bbf7d0", borderRadius: "12px", padding: "12px 16px", marginBottom: "14px", textAlign: "center" }}>
           <div style={{ fontSize: "13px", color: darkMode ? "#86efac" : "#166534" }}>Potential Yearly Savings</div>
@@ -377,7 +401,6 @@ export default function Home() {
         <span style={{ fontSize: "17px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
       </div>
 
-      {/* Category Breakdown with Bars */}
       {subscriptions.length > 0 && (
         <div style={{ backgroundColor: card, borderRadius: "12px", padding: "14px", marginBottom: "14px" }}>
           <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>Spending by Category</h3>
@@ -404,8 +427,14 @@ export default function Home() {
           Upload CSV
           <input type="file" accept=".csv" onChange={handleFileUpload} style={{ display: "none" }} />
         </label>
-        <button onClick={exportData} style={{ padding: "11px", backgroundColor: card, color: text, border: `1px solid ${border}`, borderRadius: "10px", fontWeight: "600", fontSize: "13px" }}>Export CSV</button>
+        <button onClick={() => exportData(false)} style={{ padding: "11px", backgroundColor: card, color: text, border: `1px solid ${border}`, borderRadius: "10px", fontWeight: "600", fontSize: "13px" }}>Export All</button>
       </div>
+
+      {filteredSubs.length > 0 && filteredSubs.length !== subscriptions.length && (
+        <button onClick={() => exportData(true)} style={{ width: "100%", padding: "10px", marginBottom: "8px", backgroundColor: card, color: text, border: `1px solid ${border}`, borderRadius: "10px", fontWeight: "600", fontSize: "13px" }}>
+          Export Filtered ({filteredSubs.length})
+        </button>
+      )}
 
       <button
         onClick={() => {
@@ -428,9 +457,16 @@ export default function Home() {
         {plaidStatus === "idle" && "Connect Bank (Plaid)"}
       </button>
 
-      <button onClick={clearAllData} style={{ width: "100%", padding: "9px", marginBottom: "14px", backgroundColor: darkMode ? "#450a0a" : "#fef2f2", color: "#dc2626", border: "none", borderRadius: "10px", fontWeight: "600", fontSize: "13px" }}>
-        Clear All Data
-      </button>
+      <div style={{ display: "grid", gridTemplateColumns: reviewedCount > 0 ? "1fr 1fr" : "1fr", gap: "8px", marginBottom: "14px" }}>
+        <button onClick={clearAllData} style={{ padding: "9px", backgroundColor: darkMode ? "#450a0a" : "#fef2f2", color: "#dc2626", border: "none", borderRadius: "10px", fontWeight: "600", fontSize: "13px" }}>
+          Clear All Data
+        </button>
+        {reviewedCount > 0 && (
+          <button onClick={clearAllReviewed} style={{ padding: "9px", backgroundColor: darkMode ? "#0c4a6e" : "#e0f2fe", color: darkMode ? "#7dd3fc" : "#0369a1", border: "none", borderRadius: "10px", fontWeight: "600", fontSize: "13px" }}>
+            Clear Reviewed ({reviewedCount})
+          </button>
+        )}
+      </div>
 
       {message && <p style={{ textAlign: "center", color: "#2563eb", fontSize: "13px", marginBottom: "14px" }}>{message}</p>}
 
@@ -465,7 +501,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Add Subscription */}
       <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
         <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Add Subscription</h3>
         <input type="text" placeholder="Name (e.g. Netflix)" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
@@ -477,7 +512,6 @@ export default function Home() {
         <button onClick={addManualSubscription} style={{ width: "100%", padding: "11px", backgroundColor: "#0f172a", color: "white", border: "none", borderRadius: "8px", fontWeight: "600" }}>Add Subscription</button>
       </div>
 
-      {/* Subscriptions List */}
       {filteredSubs.length > 0 ? (
         <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -568,12 +602,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Collapsible Cost of Living */}
       <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
-        <div 
-          onClick={() => setShowCostOfLiving(!showCostOfLiving)} 
-          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
-        >
+        <div onClick={() => setShowCostOfLiving(!showCostOfLiving)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
           <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "600" }}>Cost of Living</h3>
           <span style={{ fontSize: "13px", color: muted }}>{showCostOfLiving ? "Hide ▲" : "Show ▼"}</span>
         </div>
