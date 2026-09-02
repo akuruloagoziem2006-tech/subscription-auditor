@@ -11,6 +11,7 @@ export default function Home() {
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editCategory, setEditCategory] = useState("Entertainment");
+  const [editNotes, setEditNotes] = useState("");
   const [filterCategory, setFilterCategory] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("amount-desc");
@@ -23,6 +24,7 @@ export default function Home() {
   const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [newCategory, setNewCategory] = useState("Entertainment");
+  const [newNotes, setNewNotes] = useState("");
 
   const [linkToken, setLinkToken] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
@@ -169,7 +171,9 @@ export default function Home() {
           amount: avgAmount,
           count: items.length,
           status: "keep",
-          category
+          category,
+          notes: "",
+          reviewed: false
         });
       }
     });
@@ -209,6 +213,14 @@ export default function Home() {
     setSubscriptions(prev => prev.map(sub => sub.id === id ? { ...sub, status: newStatus } : sub));
   }
 
+  function toggleReviewed(id) {
+    setSubscriptions(prev => prev.map(sub => sub.id === id ? { ...sub, reviewed: !sub.reviewed } : sub));
+  }
+
+  function quickChangeCategory(id, newCat) {
+    setSubscriptions(prev => prev.map(sub => sub.id === id ? { ...sub, category: newCat } : sub));
+  }
+
   function deleteSubscription(id) {
     if (!confirm("Are you sure you want to delete this subscription?")) return;
     const sub = subscriptions.find(s => s.id === id);
@@ -221,6 +233,7 @@ export default function Home() {
     setEditName(sub.name);
     setEditAmount(sub.amount.toString());
     setEditCategory(sub.category || "Other");
+    setEditNotes(sub.notes || "");
   }
 
   function saveEdit() {
@@ -229,7 +242,7 @@ export default function Home() {
     const oldSub = subscriptions.find(s => s.id === editingId);
     const difference = newAmt - (oldSub ? oldSub.amount : 0);
     setSubscriptions(prev =>
-      prev.map(sub => sub.id === editingId ? { ...sub, name: editName, amount: newAmt, category: editCategory } : sub)
+      prev.map(sub => sub.id === editingId ? { ...sub, name: editName, amount: newAmt, category: editCategory, notes: editNotes } : sub)
     );
     setTotal(prev => prev + difference);
     setEditingId(null);
@@ -238,11 +251,21 @@ export default function Home() {
   function addManualSubscription() {
     if (!newName || !newAmount) return;
     const amount = parseFloat(newAmount);
-    const newSub = { id: Date.now().toString(), name: newName, amount, count: 1, status: "keep", category: newCategory };
+    const newSub = {
+      id: Date.now().toString(),
+      name: newName,
+      amount,
+      count: 1,
+      status: "keep",
+      category: newCategory,
+      notes: newNotes,
+      reviewed: false
+    };
     setSubscriptions(prev => [...prev, newSub]);
     setTotal(prev => prev + amount);
     setNewName("");
     setNewAmount("");
+    setNewNotes("");
   }
 
   function updateCostOfLiving(field, value) {
@@ -250,9 +273,9 @@ export default function Home() {
   }
 
   function exportData() {
-    let csv = "Name,Amount,Category,Status,Count\n";
+    let csv = "Name,Amount,Category,Status,Count,Notes,Reviewed\n";
     subscriptions.forEach(sub => {
-      csv += `"\( {sub.name}", \){sub.amount.toFixed(2)},\( {sub.category}, \){sub.status},${sub.count}\n`;
+      csv += `"\( {sub.name}", \){sub.amount.toFixed(2)},\( {sub.category}, \){sub.status},\( {sub.count}," \){sub.notes || ""}",${sub.reviewed ? "Yes" : "No"}\n`;
     });
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -278,7 +301,6 @@ export default function Home() {
     }
   }
 
-  // Filtering + Sorting
   let filteredSubs = subscriptions
     .filter(sub => filterCategory === "All" || sub.category === filterCategory)
     .filter(sub => sub.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -292,6 +314,8 @@ export default function Home() {
   subscriptions.forEach(sub => {
     categoryTotals[sub.category] = (categoryTotals[sub.category] || 0) + sub.amount;
   });
+
+  const maxCategoryAmount = Math.max(...Object.values(categoryTotals), 1);
 
   const totalCOL = Object.values(costOfLiving).reduce((a, b) => a + b, 0);
   const savings = subscriptions.filter(sub => sub.status === "cancel").reduce((sum, sub) => sum + sub.amount, 0);
@@ -309,7 +333,6 @@ export default function Home() {
   return (
     <div style={{ padding: "16px", fontFamily: "system-ui, -apple-system, sans-serif", maxWidth: "720px", margin: "0 auto", backgroundColor: bg, minHeight: "100vh", color: text }}>
       
-      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
         <h1 style={{ fontSize: "22px", fontWeight: "700", margin: 0 }}>Subscription Auditor</h1>
         <button onClick={() => setDarkMode(!darkMode)} style={{ padding: "6px 12px", borderRadius: "20px", border: `1px solid ${border}`, background: card, color: text, fontSize: "13px" }}>
@@ -322,13 +345,11 @@ export default function Home() {
         <p style={{ color: muted, marginBottom: "14px", fontSize: "12px" }}>Last synced: {lastSynced}</p>
       )}
 
-      {/* View Mode */}
       <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
         <button onClick={() => setViewMode("monthly")} style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: viewMode === "monthly" ? "#2563eb" : card, color: viewMode === "monthly" ? "white" : text, fontWeight: "600", fontSize: "13px" }}>Monthly</button>
         <button onClick={() => setViewMode("yearly")} style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: viewMode === "yearly" ? "#2563eb" : card, color: viewMode === "yearly" ? "white" : text, fontWeight: "600", fontSize: "13px" }}>Yearly</button>
       </div>
 
-      {/* Summary Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
         <div style={{ backgroundColor: card, padding: "14px", borderRadius: "12px" }}>
           <div style={{ fontSize: "12px", color: muted }}>{viewMode === "yearly" ? "Yearly" : "Monthly"} Recurring</div>
@@ -345,20 +366,28 @@ export default function Home() {
         <span style={{ fontSize: "17px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
       </div>
 
-      {/* Category Breakdown */}
+      {/* Category Breakdown with Visual Bars */}
       {subscriptions.length > 0 && (
         <div style={{ backgroundColor: card, borderRadius: "12px", padding: "14px", marginBottom: "14px" }}>
-          <h3 style={{ margin: "0 0 10px 0", fontSize: "14px", fontWeight: "600" }}>Spending by Category</h3>
-          {Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]).map(([cat, amount]) => (
-            <div key={cat} style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", fontSize: "13px" }}>
-              <span>{cat}</span>
-              <span style={{ fontWeight: "600" }}>${(viewMode === "yearly" ? amount * 12 : amount).toFixed(2)}</span>
-            </div>
-          ))}
+          <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>Spending by Category</h3>
+          {Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]).map(([cat, amount]) => {
+            const percentage = (amount / maxCategoryAmount) * 100;
+            const displayAmount = viewMode === "yearly" ? amount * 12 : amount;
+            return (
+              <div key={cat} style={{ marginBottom: "10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", marginBottom: "4px" }}>
+                  <span>{cat}</span>
+                  <span style={{ fontWeight: "600" }}>${displayAmount.toFixed(2)}</span>
+                </div>
+                <div style={{ height: "6px", backgroundColor: border, borderRadius: "4px", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${percentage}%`, backgroundColor: "#2563eb", borderRadius: "4px" }}></div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Action Buttons */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
         <label style={{ display: "block", textAlign: "center", padding: "11px", backgroundColor: "#2563eb", color: "white", borderRadius: "10px", fontWeight: "600", fontSize: "13px" }}>
           Upload CSV
@@ -394,7 +423,6 @@ export default function Home() {
 
       {message && <p style={{ textAlign: "center", color: "#2563eb", fontSize: "13px", marginBottom: "14px" }}>{message}</p>}
 
-      {/* Search + Sort */}
       {subscriptions.length > 0 && (
         <>
           <input
@@ -407,11 +435,7 @@ export default function Home() {
 
           <div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center" }}>
             <span style={{ fontSize: "13px", color: muted }}>Sort:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              style={{ flex: 1, padding: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: card, color: text, fontSize: "13px" }}
-            >
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ flex: 1, padding: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: card, color: text, fontSize: "13px" }}>
               <option value="amount-desc">Highest amount</option>
               <option value="amount-asc">Lowest amount</option>
               <option value="name">Name A-Z</option>
@@ -421,7 +445,6 @@ export default function Home() {
         </>
       )}
 
-      {/* Category Filter */}
       {subscriptions.length > 0 && (
         <div style={{ marginBottom: "14px", overflowX: "auto", whiteSpace: "nowrap", paddingBottom: "4px" }}>
           <button onClick={() => setFilterCategory("All")} style={{ padding: "6px 12px", marginRight: "6px", borderRadius: "20px", border: "none", background: filterCategory === "All" ? "#2563eb" : card, color: filterCategory === "All" ? "white" : text, fontSize: "12px" }}>All</button>
@@ -436,9 +459,10 @@ export default function Home() {
         <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Add Subscription</h3>
         <input type="text" placeholder="Name (e.g. Netflix)" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
         <input type="number" placeholder="Amount" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
-        <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "10px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text }}>
+        <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text }}>
           {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
         </select>
+        <input type="text" placeholder="Notes (optional)" value={newNotes} onChange={(e) => setNewNotes(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "10px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
         <button onClick={addManualSubscription} style={{ width: "100%", padding: "11px", backgroundColor: "#0f172a", color: "white", border: "none", borderRadius: "8px", fontWeight: "600" }}>Add Subscription</button>
       </div>
 
@@ -453,33 +477,59 @@ export default function Home() {
           </div>
 
           {filteredSubs.map((sub) => (
-            <div key={sub.id} style={{ padding: "12px 0", borderBottom: `1px solid ${border}` }}>
+            <div key={sub.id} style={{ padding: "12px 0", borderBottom: `1px solid ${border}`, opacity: sub.reviewed ? 0.7 : 1 }}>
               {editingId === sub.id ? (
                 <div>
                   <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
                   <input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
-                  <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}>
+                  <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}>
                     {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                   </select>
+                  <input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Notes" style={{ width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button onClick={saveEdit} style={{ flex: 1, padding: "8px", background: "#16a34a", color: "white", border: "none", borderRadius: "6px" }}>Save</button>
                     <button onClick={() => setEditingId(null)} style={{ flex: 1, padding: "8px", background: border, color: text, border: "none", borderRadius: "6px" }}>Cancel</button>
                   </div>
                 </div>
               ) : (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: "500", fontSize: "14px" }}>{sub.name}</div>
-                    <div style={{ fontSize: "12px", color: muted, marginTop: "2px" }}>{sub.category} • {sub.count > 1 ? `${sub.count} times` : "Manual"}</div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: "600", marginBottom: "6px", fontSize: "14px" }}>${(viewMode === "yearly" ? sub.amount * 12 : sub.amount).toFixed(2)}</div>
-                    <div style={{ display: "flex", gap: "4px", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                      <button onClick={() => updateStatus(sub.id, "keep")} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.status === "keep" ? "#16a34a" : border, color: sub.status === "keep" ? "white" : text, border: "none", borderRadius: "6px" }}>Keep</button>
-                      <button onClick={() => updateStatus(sub.id, "cancel")} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.status === "cancel" ? "#dc2626" : border, color: sub.status === "cancel" ? "white" : text, border: "none", borderRadius: "6px" }}>Cancel</button>
-                      <button onClick={() => startEdit(sub)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: border, color: text, border: "none", borderRadius: "6px" }}>Edit</button>
-                      <button onClick={() => deleteSubscription(sub.id)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: darkMode ? "#450a0a" : "#fee2e2", color: "#ef4444", border: "none", borderRadius: "6px" }}>Delete</button>
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: "500", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}>
+                        {sub.name}
+                        {sub.reviewed && <span style={{ fontSize: "10px", background: "#16a34a", color: "white", padding: "1px 5px", borderRadius: "4px" }}>Reviewed</span>}
+                      </div>
+                      <div style={{ fontSize: "12px", color: muted, marginTop: "2px" }}>
+                        {sub.category} • {sub.count > 1 ? `${sub.count} times` : "Manual"}
+                        {sub.notes && ` • ${sub.notes}`}
+                      </div>
                     </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontWeight: "600", marginBottom: "6px", fontSize: "14px" }}>
+                        ${(viewMode === "yearly" ? sub.amount * 12 : sub.amount).toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Category Change */}
+                  <div style={{ margin: "8px 0 6px 0" }}>
+                    <select
+                      value={sub.category}
+                      onChange={(e) => quickChangeCategory(sub.id, e.target.value)}
+                      style={{ padding: "4px 6px", fontSize: "11px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}
+                    >
+                      {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                    <button onClick={() => updateStatus(sub.id, "keep")} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.status === "keep" ? "#16a34a" : border, color: sub.status === "keep" ? "white" : text, border: "none", borderRadius: "6px" }}>Keep</button>
+                    <button onClick={() => updateStatus(sub.id, "cancel")} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.status === "cancel" ? "#dc2626" : border, color: sub.status === "cancel" ? "white" : text, border: "none", borderRadius: "6px" }}>Cancel</button>
+                    <button onClick={() => toggleReviewed(sub.id)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.reviewed ? "#0ea5e9" : border, color: sub.reviewed ? "white" : text, border: "none", borderRadius: "6px" }}>
+                      {sub.reviewed ? "Reviewed" : "Mark Reviewed"}
+                    </button>
+                    <button onClick={() => startEdit(sub)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: border, color: text, border: "none", borderRadius: "6px" }}>Edit</button>
+                    <button onClick={() => deleteSubscription(sub.id)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: darkMode ? "#450a0a" : "#fee2e2", color: "#ef4444", border: "none", borderRadius: "6px" }}>Delete</button>
                   </div>
                 </div>
               )}
@@ -508,7 +558,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Footer */}
       <div style={{ textAlign: "center", marginTop: "20px", paddingBottom: "20px", fontSize: "12px", color: muted }}>
         <a href="/privacy" style={{ color: muted, marginRight: "14px" }}>Privacy Policy</a>
         <a href="/terms" style={{ color: muted }}>Terms of Service</a>
