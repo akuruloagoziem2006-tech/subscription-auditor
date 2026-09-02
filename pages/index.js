@@ -16,6 +16,7 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("amount-desc");
   const [lastSynced, setLastSynced] = useState(null);
+  const [showCostOfLiving, setShowCostOfLiving] = useState(false);
 
   const [costOfLiving, setCostOfLiving] = useState({
     housing: 0, food: 0, transport: 0, utilities: 0, other: 0
@@ -323,6 +324,7 @@ export default function Home() {
   const displaySavings = viewMode === "yearly" ? savings * 12 : savings;
   const displayCOL = viewMode === "yearly" ? totalCOL * 12 : totalCOL;
   const grandTotal = displayTotal + displayCOL;
+  const yearlySavings = savings * 12;
 
   const bg = darkMode ? "#0f172a" : "#f8fafc";
   const card = darkMode ? "#1e293b" : "white";
@@ -350,6 +352,7 @@ export default function Home() {
         <button onClick={() => setViewMode("yearly")} style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: viewMode === "yearly" ? "#2563eb" : card, color: viewMode === "yearly" ? "white" : text, fontWeight: "600", fontSize: "13px" }}>Yearly</button>
       </div>
 
+      {/* Summary Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
         <div style={{ backgroundColor: card, padding: "14px", borderRadius: "12px" }}>
           <div style={{ fontSize: "12px", color: muted }}>{viewMode === "yearly" ? "Yearly" : "Monthly"} Recurring</div>
@@ -361,12 +364,20 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Yearly Savings Highlight */}
+      {savings > 0 && (
+        <div style={{ backgroundColor: darkMode ? "#052e16" : "#f0fdf4", border: darkMode ? "1px solid #166534" : "1px solid #bbf7d0", borderRadius: "12px", padding: "12px 16px", marginBottom: "14px", textAlign: "center" }}>
+          <div style={{ fontSize: "13px", color: darkMode ? "#86efac" : "#166534" }}>Potential Yearly Savings</div>
+          <div style={{ fontSize: "22px", fontWeight: "700", color: "#16a34a" }}>${yearlySavings.toFixed(2)}</div>
+        </div>
+      )}
+
       <div style={{ backgroundColor: darkMode ? "#1e293b" : "#0f172a", color: "white", padding: "12px 16px", borderRadius: "12px", marginBottom: "14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: "13px" }}>Total {viewMode === "yearly" ? "Yearly" : "Monthly"}</span>
         <span style={{ fontSize: "17px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
       </div>
 
-      {/* Category Breakdown with Visual Bars */}
+      {/* Category Breakdown with Bars */}
       {subscriptions.length > 0 && (
         <div style={{ backgroundColor: card, borderRadius: "12px", padding: "14px", marginBottom: "14px" }}>
           <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>Spending by Category</h3>
@@ -476,86 +487,111 @@ export default function Home() {
             <span style={{ fontSize: "12px", color: muted }}>{filteredSubs.length} shown</span>
           </div>
 
-          {filteredSubs.map((sub) => (
-            <div key={sub.id} style={{ padding: "12px 0", borderBottom: `1px solid ${border}`, opacity: sub.reviewed ? 0.7 : 1 }}>
-              {editingId === sub.id ? (
-                <div>
-                  <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
-                  <input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
-                  <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}>
-                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                  </select>
-                  <input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Notes" style={{ width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={saveEdit} style={{ flex: 1, padding: "8px", background: "#16a34a", color: "white", border: "none", borderRadius: "6px" }}>Save</button>
-                    <button onClick={() => setEditingId(null)} style={{ flex: 1, padding: "8px", background: border, color: text, border: "none", borderRadius: "6px" }}>Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: "500", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}>
-                        {sub.name}
-                        {sub.reviewed && <span style={{ fontSize: "10px", background: "#16a34a", color: "white", padding: "1px 5px", borderRadius: "4px" }}>Reviewed</span>}
-                      </div>
-                      <div style={{ fontSize: "12px", color: muted, marginTop: "2px" }}>
-                        {sub.category} • {sub.count > 1 ? `${sub.count} times` : "Manual"}
-                        {sub.notes && ` • ${sub.notes}`}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontWeight: "600", marginBottom: "6px", fontSize: "14px" }}>
-                        ${(viewMode === "yearly" ? sub.amount * 12 : sub.amount).toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Quick Category Change */}
-                  <div style={{ margin: "8px 0 6px 0" }}>
-                    <select
-                      value={sub.category}
-                      onChange={(e) => quickChangeCategory(sub.id, e.target.value)}
-                      style={{ padding: "4px 6px", fontSize: "11px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}
-                    >
+          {filteredSubs.map((sub) => {
+            const isHighCost = sub.amount >= 50;
+            return (
+              <div key={sub.id} style={{ 
+                padding: "12px 0", 
+                borderBottom: `1px solid ${border}`, 
+                opacity: sub.reviewed ? 0.7 : 1,
+                backgroundColor: isHighCost ? (darkMode ? "#1c1917" : "#fff7ed") : "transparent",
+                margin: isHighCost ? "0 -8px" : "0",
+                paddingLeft: isHighCost ? "8px" : "0",
+                paddingRight: isHighCost ? "8px" : "0",
+                borderRadius: isHighCost ? "8px" : "0"
+              }}>
+                {editingId === sub.id ? (
+                  <div>
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
+                    <input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
+                    <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}>
                       {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
+                    <input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Notes" style={{ width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button onClick={saveEdit} style={{ flex: 1, padding: "8px", background: "#16a34a", color: "white", border: "none", borderRadius: "6px" }}>Save</button>
+                      <button onClick={() => setEditingId(null)} style={{ flex: 1, padding: "8px", background: border, color: text, border: "none", borderRadius: "6px" }}>Cancel</button>
+                    </div>
                   </div>
+                ) : (
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: "500", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          {sub.name}
+                          {isHighCost && <span style={{ fontSize: "10px", background: "#ea580c", color: "white", padding: "1px 5px", borderRadius: "4px" }}>High</span>}
+                          {sub.reviewed && <span style={{ fontSize: "10px", background: "#16a34a", color: "white", padding: "1px 5px", borderRadius: "4px" }}>Reviewed</span>}
+                        </div>
+                        <div style={{ fontSize: "12px", color: muted, marginTop: "2px" }}>
+                          {sub.category} • {sub.count > 1 ? `${sub.count} times` : "Manual"}
+                          {sub.notes && ` • ${sub.notes}`}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontWeight: "600", marginBottom: "6px", fontSize: "14px" }}>
+                          ${(viewMode === "yearly" ? sub.amount * 12 : sub.amount).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
 
-                  <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                    <button onClick={() => updateStatus(sub.id, "keep")} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.status === "keep" ? "#16a34a" : border, color: sub.status === "keep" ? "white" : text, border: "none", borderRadius: "6px" }}>Keep</button>
-                    <button onClick={() => updateStatus(sub.id, "cancel")} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.status === "cancel" ? "#dc2626" : border, color: sub.status === "cancel" ? "white" : text, border: "none", borderRadius: "6px" }}>Cancel</button>
-                    <button onClick={() => toggleReviewed(sub.id)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.reviewed ? "#0ea5e9" : border, color: sub.reviewed ? "white" : text, border: "none", borderRadius: "6px" }}>
-                      {sub.reviewed ? "Reviewed" : "Mark Reviewed"}
-                    </button>
-                    <button onClick={() => startEdit(sub)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: border, color: text, border: "none", borderRadius: "6px" }}>Edit</button>
-                    <button onClick={() => deleteSubscription(sub.id)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: darkMode ? "#450a0a" : "#fee2e2", color: "#ef4444", border: "none", borderRadius: "6px" }}>Delete</button>
+                    <div style={{ margin: "8px 0 6px 0" }}>
+                      <select
+                        value={sub.category}
+                        onChange={(e) => quickChangeCategory(sub.id, e.target.value)}
+                        style={{ padding: "4px 6px", fontSize: "11px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}
+                      >
+                        {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                      <button onClick={() => updateStatus(sub.id, "keep")} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.status === "keep" ? "#16a34a" : border, color: sub.status === "keep" ? "white" : text, border: "none", borderRadius: "6px" }}>Keep</button>
+                      <button onClick={() => updateStatus(sub.id, "cancel")} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.status === "cancel" ? "#dc2626" : border, color: sub.status === "cancel" ? "white" : text, border: "none", borderRadius: "6px" }}>Cancel</button>
+                      <button onClick={() => toggleReviewed(sub.id)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.reviewed ? "#0ea5e9" : border, color: sub.reviewed ? "white" : text, border: "none", borderRadius: "6px" }}>
+                        {sub.reviewed ? "Reviewed" : "Mark Reviewed"}
+                      </button>
+                      <button onClick={() => startEdit(sub)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: border, color: text, border: "none", borderRadius: "6px" }}>Edit</button>
+                      <button onClick={() => deleteSubscription(sub.id)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: darkMode ? "#450a0a" : "#fee2e2", color: "#ef4444", border: "none", borderRadius: "6px" }}>Delete</button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
-        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "36px 16px", marginBottom: "16px", textAlign: "center", color: muted }}>
-          <div style={{ fontSize: "15px", marginBottom: "6px" }}>No subscriptions yet</div>
-          <div style={{ fontSize: "13px" }}>Upload a CSV or connect your bank to get started</div>
+        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "40px 16px", marginBottom: "16px", textAlign: "center", color: muted }}>
+          <div style={{ fontSize: "16px", marginBottom: "8px", fontWeight: "500" }}>No subscriptions yet</div>
+          <div style={{ fontSize: "13px", lineHeight: "1.5" }}>
+            Upload a CSV of your transactions<br />or connect your bank to get started
+          </div>
         </div>
       )}
 
-      {/* Cost of Living */}
+      {/* Collapsible Cost of Living */}
       <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
-        <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Cost of Living</h3>
-        {["housing", "food", "transport", "utilities", "other"].map((field) => (
-          <div key={field} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-            <label style={{ textTransform: "capitalize", fontSize: "13px" }}>{field}</label>
-            <input type="number" value={costOfLiving[field]} onChange={(e) => updateCostOfLiving(field, e.target.value)} style={{ width: "100px", padding: "8px", border: `1px solid ${border}`, borderRadius: "8px", textAlign: "right", background: bg, color: text }} />
-          </div>
-        ))}
-        <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${border}`, display: "flex", justifyContent: "space-between", fontWeight: "600", fontSize: "14px" }}>
-          <span>Total Living Costs ({viewMode})</span>
-          <span>${displayCOL.toFixed(2)}</span>
+        <div 
+          onClick={() => setShowCostOfLiving(!showCostOfLiving)} 
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+        >
+          <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "600" }}>Cost of Living</h3>
+          <span style={{ fontSize: "13px", color: muted }}>{showCostOfLiving ? "Hide ▲" : "Show ▼"}</span>
         </div>
+
+        {showCostOfLiving && (
+          <div style={{ marginTop: "14px" }}>
+            {["housing", "food", "transport", "utilities", "other"].map((field) => (
+              <div key={field} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <label style={{ textTransform: "capitalize", fontSize: "13px" }}>{field}</label>
+                <input type="number" value={costOfLiving[field]} onChange={(e) => updateCostOfLiving(field, e.target.value)} style={{ width: "100px", padding: "8px", border: `1px solid ${border}`, borderRadius: "8px", textAlign: "right", background: bg, color: text }} />
+              </div>
+            ))}
+            <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${border}`, display: "flex", justifyContent: "space-between", fontWeight: "600", fontSize: "14px" }}>
+              <span>Total Living Costs ({viewMode})</span>
+              <span>${displayCOL.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ textAlign: "center", marginTop: "20px", paddingBottom: "20px", fontSize: "12px", color: muted }}>
