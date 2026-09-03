@@ -18,6 +18,7 @@ export default function Home() {
   const [lastSynced, setLastSynced] = useState(null);
   const [showCostOfLiving, setShowCostOfLiving] = useState(false);
   const [showTip, setShowTip] = useState(true);
+  const [highCostThreshold, setHighCostThreshold] = useState(50);
 
   const [costOfLiving, setCostOfLiving] = useState({
     housing: 0, food: 0, transport: 0, utilities: 0, other: 0
@@ -41,6 +42,7 @@ export default function Home() {
     const savedDark = localStorage.getItem("darkMode");
     const savedSync = localStorage.getItem("lastSynced");
     const tipDismissed = localStorage.getItem("tipDismissed");
+    const savedThreshold = localStorage.getItem("highCostThreshold");
 
     if (savedSubs) setSubscriptions(JSON.parse(savedSubs));
     if (savedTotal) setTotal(parseFloat(savedTotal));
@@ -48,6 +50,7 @@ export default function Home() {
     if (savedDark) setDarkMode(savedDark === "true");
     if (savedSync) setLastSynced(savedSync);
     if (tipDismissed === "true") setShowTip(false);
+    if (savedThreshold) setHighCostThreshold(parseFloat(savedThreshold));
   }, []);
 
   useEffect(() => {
@@ -55,8 +58,9 @@ export default function Home() {
     localStorage.setItem("total", total.toString());
     localStorage.setItem("costOfLiving", JSON.stringify(costOfLiving));
     localStorage.setItem("darkMode", darkMode.toString());
+    localStorage.setItem("highCostThreshold", highCostThreshold.toString());
     if (lastSynced) localStorage.setItem("lastSynced", lastSynced);
-  }, [subscriptions, total, costOfLiving, darkMode, lastSynced]);
+  }, [subscriptions, total, costOfLiving, darkMode, lastSynced, highCostThreshold]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -332,6 +336,7 @@ export default function Home() {
 
   const maxCategoryAmount = Math.max(...Object.values(categoryTotals), 1);
   const reviewedCount = subscriptions.filter(s => s.reviewed).length;
+  const highCostCount = subscriptions.filter(s => s.amount >= highCostThreshold).length;
 
   const totalCOL = Object.values(costOfLiving).reduce((a, b) => a + b, 0);
   const savings = subscriptions.filter(sub => sub.status === "cancel").reduce((sum, sub) => sum + sub.amount, 0);
@@ -341,11 +346,13 @@ export default function Home() {
   const grandTotal = displayTotal + displayCOL;
   const yearlySavings = savings * 12;
 
+  // Improved contrast colors
   const bg = darkMode ? "#0f172a" : "#f8fafc";
-  const card = darkMode ? "#1e293b" : "white";
+  const card = darkMode ? "#1e293b" : "#ffffff";
   const text = darkMode ? "#f1f5f9" : "#0f172a";
   const muted = darkMode ? "#94a3b8" : "#64748b";
   const border = darkMode ? "#334155" : "#e2e8f0";
+  const inputBg = darkMode ? "#0f172a" : "#f8fafc";
 
   return (
     <div style={{ padding: "16px", fontFamily: "system-ui, -apple-system, sans-serif", maxWidth: "720px", margin: "0 auto", backgroundColor: bg, minHeight: "100vh", color: text }}>
@@ -359,10 +366,17 @@ export default function Home() {
       <p style={{ color: muted, marginBottom: "6px", fontSize: "13px" }}>Find forgotten subscriptions & track living costs</p>
       
       {lastSynced && (
-        <p style={{ color: muted, marginBottom: "14px", fontSize: "12px" }}>Last synced: {lastSynced}</p>
+        <p style={{ color: muted, marginBottom: "8px", fontSize: "12px" }}>Last synced: {lastSynced}</p>
       )}
 
-      {/* Onboarding Tip */}
+      {/* Stats row */}
+      {(reviewedCount > 0 || highCostCount > 0) && (
+        <div style={{ display: "flex", gap: "10px", marginBottom: "12px", fontSize: "12px", color: muted }}>
+          {reviewedCount > 0 && <span>Reviewed: {reviewedCount}</span>}
+          {highCostCount > 0 && <span>High-cost: {highCostCount}</span>}
+        </div>
+      )}
+
       {showTip && subscriptions.length === 0 && (
         <div style={{ backgroundColor: darkMode ? "#1e3a5f" : "#eff6ff", border: darkMode ? "1px solid #1e40af" : "1px solid #bfdbfe", borderRadius: "12px", padding: "14px", marginBottom: "14px", position: "relative" }}>
           <button onClick={dismissTip} style={{ position: "absolute", top: "8px", right: "10px", background: "none", border: "none", color: muted, fontSize: "16px", cursor: "pointer" }}>×</button>
@@ -379,7 +393,7 @@ export default function Home() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
-        <div style={{ backgroundColor: card, padding: "14px", borderRadius: "12px" }}>
+        <div style={{ backgroundColor: card, padding: "14px", borderRadius: "12px", border: `1px solid ${border}` }}>
           <div style={{ fontSize: "12px", color: muted }}>{viewMode === "yearly" ? "Yearly" : "Monthly"} Recurring</div>
           <div style={{ fontSize: "20px", fontWeight: "700" }}>${displayTotal.toFixed(2)}</div>
         </div>
@@ -402,7 +416,7 @@ export default function Home() {
       </div>
 
       {subscriptions.length > 0 && (
-        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "14px", marginBottom: "14px" }}>
+        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "14px", marginBottom: "14px", border: `1px solid ${border}` }}>
           <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: "600" }}>Spending by Category</h3>
           {Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]).map(([cat, amount]) => {
             const percentage = (amount / maxCategoryAmount) * 100;
@@ -480,7 +494,7 @@ export default function Home() {
             style={{ width: "100%", padding: "10px", marginBottom: "10px", borderRadius: "8px", border: `1px solid ${border}`, background: card, color: text, boxSizing: "border-box", fontSize: "14px" }}
           />
 
-          <div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "10px", alignItems: "center" }}>
             <span style={{ fontSize: "13px", color: muted }}>Sort:</span>
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ flex: 1, padding: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: card, color: text, fontSize: "13px" }}>
               <option value="amount-desc">Highest amount</option>
@@ -488,6 +502,17 @@ export default function Home() {
               <option value="name">Name A-Z</option>
               <option value="category">Category</option>
             </select>
+          </div>
+
+          {/* High Cost Threshold */}
+          <div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center" }}>
+            <span style={{ fontSize: "13px", color: muted }}>High cost above:</span>
+            <input
+              type="number"
+              value={highCostThreshold}
+              onChange={(e) => setHighCostThreshold(parseFloat(e.target.value) || 0)}
+              style={{ width: "80px", padding: "6px 8px", borderRadius: "8px", border: `1px solid ${border}`, background: card, color: text, fontSize: "13px" }}
+            />
           </div>
         </>
       )}
@@ -501,19 +526,19 @@ export default function Home() {
         </div>
       )}
 
-      <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
+      <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px", border: `1px solid ${border}` }}>
         <h3 style={{ margin: "0 0 12px 0", fontSize: "15px", fontWeight: "600" }}>Add Subscription</h3>
-        <input type="text" placeholder="Name (e.g. Netflix)" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
-        <input type="number" placeholder="Amount" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
-        <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text }}>
+        <input type="text" placeholder="Name (e.g. Netflix)" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: inputBg, color: text, boxSizing: "border-box" }} />
+        <input type="number" placeholder="Amount" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: inputBg, color: text, boxSizing: "border-box" }} />
+        <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "8px", borderRadius: "8px", border: `1px solid ${border}`, background: inputBg, color: text }}>
           {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
         </select>
-        <input type="text" placeholder="Notes (optional)" value={newNotes} onChange={(e) => setNewNotes(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "10px", borderRadius: "8px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
+        <input type="text" placeholder="Notes (optional)" value={newNotes} onChange={(e) => setNewNotes(e.target.value)} style={{ width: "100%", padding: "10px", marginBottom: "10px", borderRadius: "8px", border: `1px solid ${border}`, background: inputBg, color: text, boxSizing: "border-box" }} />
         <button onClick={addManualSubscription} style={{ width: "100%", padding: "11px", backgroundColor: "#0f172a", color: "white", border: "none", borderRadius: "8px", fontWeight: "600" }}>Add Subscription</button>
       </div>
 
       {filteredSubs.length > 0 ? (
-        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
+        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px", border: `1px solid ${border}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "600" }}>
               Your Subscriptions {filterCategory !== "All" && `(${filterCategory})`}
@@ -522,12 +547,12 @@ export default function Home() {
           </div>
 
           {filteredSubs.map((sub) => {
-            const isHighCost = sub.amount >= 50;
+            const isHighCost = sub.amount >= highCostThreshold;
             return (
               <div key={sub.id} style={{ 
                 padding: "12px 0", 
                 borderBottom: `1px solid ${border}`, 
-                opacity: sub.reviewed ? 0.7 : 1,
+                opacity: sub.reviewed ? 0.75 : 1,
                 backgroundColor: isHighCost ? (darkMode ? "#1c1917" : "#fff7ed") : "transparent",
                 margin: isHighCost ? "0 -8px" : "0",
                 paddingLeft: isHighCost ? "8px" : "0",
@@ -536,12 +561,12 @@ export default function Home() {
               }}>
                 {editingId === sub.id ? (
                   <div>
-                    <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
-                    <input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
-                    <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}>
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: inputBg, color: text, boxSizing: "border-box" }} />
+                    <input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: inputBg, color: text, boxSizing: "border-box" }} />
+                    <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)} style={{ width: "100%", padding: "8px", marginBottom: "6px", borderRadius: "6px", border: `1px solid ${border}`, background: inputBg, color: text }}>
                       {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
-                    <input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Notes" style={{ width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text, boxSizing: "border-box" }} />
+                    <input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Notes" style={{ width: "100%", padding: "8px", marginBottom: "8px", borderRadius: "6px", border: `1px solid ${border}`, background: inputBg, color: text, boxSizing: "border-box" }} />
                     <div style={{ display: "flex", gap: "8px" }}>
                       <button onClick={saveEdit} style={{ flex: 1, padding: "8px", background: "#16a34a", color: "white", border: "none", borderRadius: "6px" }}>Save</button>
                       <button onClick={() => setEditingId(null)} style={{ flex: 1, padding: "8px", background: border, color: text, border: "none", borderRadius: "6px" }}>Cancel</button>
@@ -572,7 +597,7 @@ export default function Home() {
                       <select
                         value={sub.category}
                         onChange={(e) => quickChangeCategory(sub.id, e.target.value)}
-                        style={{ padding: "4px 6px", fontSize: "11px", borderRadius: "6px", border: `1px solid ${border}`, background: bg, color: text }}
+                        style={{ padding: "4px 6px", fontSize: "11px", borderRadius: "6px", border: `1px solid ${border}`, background: inputBg, color: text }}
                       >
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                       </select>
@@ -594,7 +619,7 @@ export default function Home() {
           })}
         </div>
       ) : (
-        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "40px 16px", marginBottom: "16px", textAlign: "center", color: muted }}>
+        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "40px 16px", marginBottom: "16px", textAlign: "center", color: muted, border: `1px solid ${border}` }}>
           <div style={{ fontSize: "16px", marginBottom: "8px", fontWeight: "500" }}>No subscriptions yet</div>
           <div style={{ fontSize: "13px", lineHeight: "1.5" }}>
             Upload a CSV of your transactions<br />or connect your bank to get started
@@ -602,7 +627,7 @@ export default function Home() {
         </div>
       )}
 
-      <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
+      <div style={{ backgroundColor: card, borderRadius: "12px", padding: "16px", marginBottom: "16px", border: `1px solid ${border}` }}>
         <div onClick={() => setShowCostOfLiving(!showCostOfLiving)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
           <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "600" }}>Cost of Living</h3>
           <span style={{ fontSize: "13px", color: muted }}>{showCostOfLiving ? "Hide ▲" : "Show ▼"}</span>
@@ -613,7 +638,7 @@ export default function Home() {
             {["housing", "food", "transport", "utilities", "other"].map((field) => (
               <div key={field} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <label style={{ textTransform: "capitalize", fontSize: "13px" }}>{field}</label>
-                <input type="number" value={costOfLiving[field]} onChange={(e) => updateCostOfLiving(field, e.target.value)} style={{ width: "100px", padding: "8px", border: `1px solid ${border}`, borderRadius: "8px", textAlign: "right", background: bg, color: text }} />
+                <input type="number" value={costOfLiving[field]} onChange={(e) => updateCostOfLiving(field, e.target.value)} style={{ width: "100px", padding: "8px", border: `1px solid ${border}`, borderRadius: "8px", textAlign: "right", background: inputBg, color: text }} />
               </div>
             ))}
             <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${border}`, display: "flex", justifyContent: "space-between", fontWeight: "600", fontSize: "14px" }}>
