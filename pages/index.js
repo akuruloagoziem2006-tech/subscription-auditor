@@ -19,6 +19,7 @@ export default function Home() {
   const [showCostOfLiving, setShowCostOfLiving] = useState(false);
   const [showTip, setShowTip] = useState(true);
   const [highCostThreshold, setHighCostThreshold] = useState(50);
+  const [simulatorSelected, setSimulatorSelected] = useState([]);
 
   const [costOfLiving, setCostOfLiving] = useState({
     housing: 0, food: 0, transport: 0, utilities: 0, other: 0
@@ -239,6 +240,7 @@ export default function Home() {
     const sub = subscriptions.find(s => s.id === id);
     if (sub) setTotal(prev => prev - sub.amount);
     setSubscriptions(prev => prev.filter(sub => sub.id !== id));
+    setSimulatorSelected(prev => prev.filter(sid => sid !== id));
   }
 
   function startEdit(sub) {
@@ -312,12 +314,23 @@ export default function Home() {
       setFilterCategory("All");
       setSearchTerm("");
       setLastSynced(null);
+      setSimulatorSelected([]);
     }
   }
 
   function dismissTip() {
     setShowTip(false);
     localStorage.setItem("tipDismissed", "true");
+  }
+
+  function toggleSimulator(id) {
+    setSimulatorSelected(prev =>
+      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
+    );
+  }
+
+  function clearSimulator() {
+    setSimulatorSelected([]);
   }
 
   let filteredSubs = subscriptions
@@ -346,7 +359,25 @@ export default function Home() {
   const grandTotal = displayTotal + displayCOL;
   const yearlySavings = savings * 12;
 
-  // Improved contrast colors
+  const simulatorMonthly = subscriptions
+    .filter(sub => simulatorSelected.includes(sub.id))
+    .reduce((sum, sub) => sum + sub.amount, 0);
+  const simulatorYearly = simulatorMonthly * 12;
+
+  // Fixed Insight logic
+  let insight = "";
+  if (subscriptions.length > 0) {
+    if (savings > 0) {
+      insight = "You could save $" + yearlySavings.toFixed(2) + " per year by cancelling marked subscriptions";
+    } else if (highCostCount >= 2) {
+      insight = "You have " + highCostCount + " high-cost subscriptions above $" + highCostThreshold;
+    } else {
+      const topCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
+      if (topCategory) {
+        insight = "Your highest spending category is " + topCategory[0] + " ($" + topCategory[1].toFixed(2) + "/mo)";
+      }
+    }
+  }
   const bg = darkMode ? "#0f172a" : "#f8fafc";
   const card = darkMode ? "#1e293b" : "#ffffff";
   const text = darkMode ? "#f1f5f9" : "#0f172a";
@@ -369,11 +400,24 @@ export default function Home() {
         <p style={{ color: muted, marginBottom: "8px", fontSize: "12px" }}>Last synced: {lastSynced}</p>
       )}
 
-      {/* Stats row */}
       {(reviewedCount > 0 || highCostCount > 0) && (
         <div style={{ display: "flex", gap: "10px", marginBottom: "12px", fontSize: "12px", color: muted }}>
           {reviewedCount > 0 && <span>Reviewed: {reviewedCount}</span>}
           {highCostCount > 0 && <span>High-cost: {highCostCount}</span>}
+        </div>
+      )}
+
+      {insight && (
+        <div style={{ 
+          backgroundColor: darkMode ? "#1e3a5f" : "#eff6ff", 
+          border: darkMode ? "1px solid #1e40af" : "1px solid #bfdbfe", 
+          borderRadius: "12px", 
+          padding: "12px 14px", 
+          marginBottom: "14px",
+          fontSize: "13px",
+          lineHeight: "1.4"
+        }}>
+          <strong>Insight:</strong> {insight}
         </div>
       )}
 
@@ -414,6 +458,32 @@ export default function Home() {
         <span style={{ fontSize: "13px" }}>Total {viewMode === "yearly" ? "Yearly" : "Monthly"}</span>
         <span style={{ fontSize: "17px", fontWeight: "700" }}>${grandTotal.toFixed(2)}</span>
       </div>
+
+      {subscriptions.length > 0 && (
+        <div style={{ backgroundColor: card, borderRadius: "12px", padding: "14px", marginBottom: "14px", border: `1px solid ${border}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+            <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "600" }}>What if I cancel these?</h3>
+            {simulatorSelected.length > 0 && (
+              <button onClick={clearSimulator} style={{ fontSize: "12px", color: muted, background: "none", border: "none" }}>Clear</button>
+            )}
+          </div>
+          
+          {simulatorSelected.length === 0 ? (
+            <p style={{ fontSize: "13px", color: muted, margin: 0 }}>
+              Tap the checkbox next to subscriptions below to simulate cancelling them.
+            </p>
+          ) : (
+            <div>
+              <div style={{ fontSize: "13px", marginBottom: "4px" }}>
+                Selected: <strong>{simulatorSelected.length}</strong> subscription{simulatorSelected.length > 1 ? "s" : ""}
+              </div>
+              <div style={{ fontSize: "15px", fontWeight: "600", color: "#16a34a" }}>
+                You would save \( {simulatorMonthly.toFixed(2)}/mo ( \){simulatorYearly.toFixed(2)}/year)
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {subscriptions.length > 0 && (
         <div style={{ backgroundColor: card, borderRadius: "12px", padding: "14px", marginBottom: "14px", border: `1px solid ${border}` }}>
@@ -504,7 +574,6 @@ export default function Home() {
             </select>
           </div>
 
-          {/* High Cost Threshold */}
           <div style={{ display: "flex", gap: "8px", marginBottom: "12px", alignItems: "center" }}>
             <span style={{ fontSize: "13px", color: muted }}>High cost above:</span>
             <input
@@ -548,6 +617,7 @@ export default function Home() {
 
           {filteredSubs.map((sub) => {
             const isHighCost = sub.amount >= highCostThreshold;
+            const isSelected = simulatorSelected.includes(sub.id);
             return (
               <div key={sub.id} style={{ 
                 padding: "12px 0", 
@@ -575,15 +645,23 @@ export default function Home() {
                 ) : (
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: "500", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                          {sub.name}
-                          {isHighCost && <span style={{ fontSize: "10px", background: "#ea580c", color: "white", padding: "1px 5px", borderRadius: "4px" }}>High</span>}
-                          {sub.reviewed && <span style={{ fontSize: "10px", background: "#16a34a", color: "white", padding: "1px 5px", borderRadius: "4px" }}>Reviewed</span>}
-                        </div>
-                        <div style={{ fontSize: "12px", color: muted, marginTop: "2px" }}>
-                          {sub.category} • {sub.count > 1 ? `${sub.count} times` : "Manual"}
-                          {sub.notes && ` • ${sub.notes}`}
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", flex: 1, minWidth: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSimulator(sub.id)}
+                          style={{ marginTop: "3px", width: "16px", height: "16px" }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: "500", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                            {sub.name}
+                            {isHighCost && <span style={{ fontSize: "10px", background: "#ea580c", color: "white", padding: "1px 5px", borderRadius: "4px" }}>High</span>}
+                            {sub.reviewed && <span style={{ fontSize: "10px", background: "#16a34a", color: "white", padding: "1px 5px", borderRadius: "4px" }}>Reviewed</span>}
+                          </div>
+                          <div style={{ fontSize: "12px", color: muted, marginTop: "2px" }}>
+                            {sub.category} • {sub.count > 1 ? `${sub.count} times` : "Manual"}
+                            {sub.notes && ` • ${sub.notes}`}
+                          </div>
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
@@ -593,7 +671,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div style={{ margin: "8px 0 6px 0" }}>
+                    <div style={{ margin: "8px 0 6px 0", marginLeft: "24px" }}>
                       <select
                         value={sub.category}
                         onChange={(e) => quickChangeCategory(sub.id, e.target.value)}
@@ -603,7 +681,7 @@ export default function Home() {
                       </select>
                     </div>
 
-                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginLeft: "24px" }}>
                       <button onClick={() => updateStatus(sub.id, "keep")} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.status === "keep" ? "#16a34a" : border, color: sub.status === "keep" ? "white" : text, border: "none", borderRadius: "6px" }}>Keep</button>
                       <button onClick={() => updateStatus(sub.id, "cancel")} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.status === "cancel" ? "#dc2626" : border, color: sub.status === "cancel" ? "white" : text, border: "none", borderRadius: "6px" }}>Cancel</button>
                       <button onClick={() => toggleReviewed(sub.id)} style={{ padding: "4px 7px", fontSize: "11px", backgroundColor: sub.reviewed ? "#0ea5e9" : border, color: sub.reviewed ? "white" : text, border: "none", borderRadius: "6px" }}>
