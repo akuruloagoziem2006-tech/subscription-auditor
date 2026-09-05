@@ -232,6 +232,18 @@ export default function Home() {
     setSubscriptions(prev => prev.map(sub => ({ ...sub, reviewed: false })));
   }
 
+  function cancelSelected() {
+    if (simulatorSelected.length === 0) return;
+    if (!confirm(`Mark ${simulatorSelected.length} subscription(s) as Cancel?`)) return;
+    
+    setSubscriptions(prev => 
+      prev.map(sub => 
+        simulatorSelected.includes(sub.id) ? { ...sub, status: "cancel" } : sub
+      )
+    );
+    setSimulatorSelected([]);
+  }
+
   function quickChangeCategory(id, newCat) {
     setSubscriptions(prev => prev.map(sub => sub.id === id ? { ...sub, category: newCat } : sub));
   }
@@ -350,6 +362,8 @@ export default function Home() {
 
   const reviewedCount = subscriptions.filter(s => s.reviewed).length;
   const highCostCount = subscriptions.filter(s => s.amount >= highCostThreshold).length;
+  const unreviewedCount = subscriptions.filter(s => !s.reviewed).length;
+  const cancelCount = subscriptions.filter(s => s.status === "cancel").length;
 
   const totalCOL = Object.values(costOfLiving).reduce((a, b) => a + b, 0);
   const savings = subscriptions.filter(sub => sub.status === "cancel").reduce((sum, sub) => sum + sub.amount, 0);
@@ -362,6 +376,32 @@ export default function Home() {
     .filter(sub => simulatorSelected.includes(sub.id))
     .reduce((sum, sub) => sum + sub.amount, 0);
   const simulatorYearly = simulatorMonthly * 12;
+
+  // Forgotten Money Score (0-100)
+  // Higher score = more potential wasted money
+  let forgottenScore = 0;
+  if (subscriptions.length > 0) {
+    const unreviewedRatio = unreviewedCount / subscriptions.length;
+    const highCostRatio = highCostCount / subscriptions.length;
+    const cancelRatio = cancelCount / subscriptions.length;
+    
+    forgottenScore = Math.round(
+      (unreviewedRatio * 40) + 
+      (highCostRatio * 35) + 
+      (cancelRatio * 25)
+    );
+    if (forgottenScore > 100) forgottenScore = 100;
+  }
+
+  let scoreLabel = "Looking good";
+  let scoreColor = "#16a34a";
+  if (forgottenScore >= 70) {
+    scoreLabel = "High risk of wasted money";
+    scoreColor = "#dc2626";
+  } else if (forgottenScore >= 40) {
+    scoreLabel = "Some subscriptions need attention";
+    scoreColor = "#ea580c";
+  }
 
   let insight = "";
   if (subscriptions.length > 0) {
@@ -388,7 +428,7 @@ export default function Home() {
     <div style={{ 
       padding: "20px 16px", 
       fontFamily: "system-ui, -apple-system, sans-serif", 
-      maxWidth: "680px",          // Broader
+      maxWidth: "680px",
       width: "100%",
       margin: "0 auto", 
       backgroundColor: bg, 
@@ -407,6 +447,22 @@ export default function Home() {
           {darkMode ? "Light" : "Dark"}
         </button>
       </div>
+
+      {/* Forgotten Money Score */}
+      {subscriptions.length > 0 && (
+        <div style={{ 
+          backgroundColor: card, 
+          borderRadius: "16px", 
+          padding: "18px", 
+          marginBottom: "20px", 
+          border: `1px solid ${border}`,
+          textAlign: "center"
+        }}>
+          <div style={{ fontSize: "13px", color: muted, marginBottom: "6px" }}>Forgotten Money Score</div>
+          <div style={{ fontSize: "36px", fontWeight: "700", color: scoreColor }}>{forgottenScore}</div>
+          <div style={{ fontSize: "14px", color: scoreColor, marginTop: "4px", fontWeight: "500" }}>{scoreLabel}</div>
+        </div>
+      )}
 
       {/* Insight */}
       {insight && (
@@ -467,9 +523,24 @@ export default function Home() {
               <div style={{ fontSize: "20px", fontWeight: "700", color: "#16a34a" }}>
                 Save ${simulatorMonthly.toFixed(2)}/mo
               </div>
-              <div style={{ fontSize: "14px", color: muted }}>
+              <div style={{ fontSize: "14px", color: muted, marginBottom: "14px" }}>
                 ${simulatorYearly.toFixed(2)} per year
               </div>
+              <button 
+                onClick={cancelSelected}
+                style={{ 
+                  width: "100%", 
+                  padding: "12px", 
+                  backgroundColor: "#dc2626", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: "10px", 
+                  fontWeight: "600",
+                  fontSize: "14px"
+                }}
+              >
+                Mark Selected as Cancel
+              </button>
             </div>
           )}
         </div>
@@ -597,6 +668,7 @@ export default function Home() {
                               {sub.category}
                               {isHighCost && " · High"}
                               {sub.reviewed && " · Reviewed"}
+                              {sub.status === "cancel" && " · Cancel"}
                               {sub.notes && ` · ${sub.notes}`}
                             </div>
                           </div>
